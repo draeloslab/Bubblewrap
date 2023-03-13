@@ -18,7 +18,10 @@ from math import atan2, floor
 
 ## Load data from datagen/datagen.py 
 # s = np.load('vdp_1trajectories_2dim_500to20500_noise0.05.npz')
-s = np.load('lorenz_1trajectories_3dim_500to20500_noise0.05.npz')
+file = "vdp_1trajectories_2dim_500to20500_noise0.05.npz"
+file = "lorenz_1trajectories_3dim_500to20500_noise0.05.npz"
+
+s = np.load(file)
 data = s['y'][0]
 
 T = data.shape[0]       # should be 20k
@@ -75,11 +78,15 @@ plt.plot(var_tmp, 'k')
 plt.show()
 
 ## Saving data example for later plotting
-saving = False
+saving = True
 if saving:
-    A = np.save('saved_A.npy', bw.A)
-    mu = np.save('saved_mu.npy', bw.mu)
-    L = np.save('saved_L.npy', bw.L)
-    n_obs = np.save('saved_n_obs.npy', bw.n_obs)
-    pred = np.save('saved_pred.npy', bw.pred)
-    entropy = np.save('saved_entropy.npy', bw.entropy_list)
+    if "vdp" in file:
+        prefix = "vdp_2d"
+    else:
+        prefix = "lorenz_3d"
+    A = np.save(f"generated/{prefix}_A.npy", bw.A)
+    mu = np.save(f"generated/{prefix}_mu.npy", bw.mu)
+    L = np.save(f"generated/{prefix}_L.npy", bw.L)
+    n_obs = np.save(f"generated/{prefix}_n_obs.npy", bw.n_obs)
+    pred = np.save(f"generated/{prefix}_pred.npy", bw.pred)
+    entropy = np.save(f"generated/{prefix}_entropy.npy", bw.entropy_list)

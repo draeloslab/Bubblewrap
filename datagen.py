@@ -110,7 +110,7 @@ def make_dataset(f, x0, num_trajectories, num_dim, begin, end, noise):
     ys = projeds
     us = np.zeros((xx.shape[0], xx.shape[1], 1))
 
-    filename = f"{f.__name__}_{num_trajectories}trajectories_{num_dim}dim_{begin}to{end}_noise{noise}.npz"
+    filename = f"generated/{f.__name__}_{num_trajectories}trajectories_{num_dim}dim_{begin}to{end}_noise{noise}.npz"
     np.savez(filename, x = xs, y = ys, u = us)
 
 
