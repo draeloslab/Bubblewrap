@@ -145,3 +145,8 @@ data/
 .vscode/
 
 *.code-workspace
+
+# vim swap files
+# see https://stackoverflow.com/a/4824199
+*~
+.*.sw?
