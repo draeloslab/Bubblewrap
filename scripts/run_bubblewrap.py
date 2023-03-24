@@ -14,7 +14,6 @@ from bubblewrap import Bubblewrap
 
 from math import atan2, floor
 from tqdm import tqdm
-import pdb
 
 
 # ## Parameters
@@ -42,8 +41,8 @@ batch_size = 1,
 go_fast = False,
 )
 
-# default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz"
-default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.2.npz"
+default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz"
+# default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.2.npz"
 # default_file = "generated/lorenz_1trajectories_3dim_500to20500_noise0.05.npz"
 
 def run_bubblewrap(file, params):
@@ -123,7 +122,6 @@ def save_data_for_later_plotting(bw,file):
 
 if __name__ == "__main__":
     bw = run_bubblewrap(default_file, default_parameters)
-    pdb.set_trace()
 
     plot_bubblewrap_results(bw)
     save_data_for_later_plotting(bw, default_file)
