@@ -2,6 +2,7 @@
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
+
 import time
 import numpy as np
 
@@ -11,6 +12,11 @@ import matplotlib.pylab as plt
 from matplotlib.patches import Ellipse
 from mpl_toolkits.mplot3d import Axes3D
 
+# # TODO: update environment.yml
+# # TODO: on the ubuntu machine, this import is broken
+# # I fixed it by putting the project root directory in $PYTHONPATH
+# import sys
+# print(sys.path)
 from bubblewrap import Bubblewrap
 
 from math import atan2, floor
