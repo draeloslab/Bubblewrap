@@ -14,7 +14,7 @@ from jax import nn, random
 epsilon = 1e-10
 
 class Bubblewrap():
-    def __init__(self, num, dim, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, go_fast = False):
+    def __init__(self, num, dim, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1,lookahead_steps=1, go_fast = False):
         self.N = num            # Number of nodes
         self.d = dim            # dimension of the space
         self.seed = seed
@@ -33,6 +33,7 @@ class Bubblewrap():
 
         self.printing = False
 
+        self.lookahead_steps = lookahead_steps
         self.go_fast = go_fast
         
         self.key = random.PRNGKey(self.seed)
@@ -181,9 +182,9 @@ class Bubblewrap():
         if not self.go_fast:
             new_log_pred = self.log_pred_prob(self.B, self.A, self.alpha) 
             self.pred.append(new_log_pred)
-            ent = entropy(self.A, self.alpha)
+            ent = entropy(self.A, self.alpha, 1)
             self.entropy_list.append(ent)
-            self.pred_far.append(self.pred_ahead(self.B, self.A, self.alpha))
+            self.pred_far.append(self.pred_ahead(self.B, self.A, self.alpha, 1))
 
         self.update_B(x)
 
@@ -379,12 +380,12 @@ def log_pred_prob(B, A, alpha):
     return np.log(alpha @ A @ np.exp(B) + 1e-16)
 
 @jit
-def pred_ahead(B, A, alpha):
+def pred_ahead(B, A, alpha, steps_ahead):
     AT = np.linalg.matrix_power(A,1)
     return np.log(alpha @ AT @ np.exp(B) + 1e-16)
 
 @jit
-def entropy(A, alpha):
+def entropy(A, alpha, steps_ahead):
     AT = np.linalg.matrix_power(A,1)
     one = alpha @ AT
     return - np.sum(one.dot(np.log2(alpha @ AT)))

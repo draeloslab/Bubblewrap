@@ -4,14 +4,14 @@ import numpy as np
 from scipy import io as sio
 
 from sklearn import random_projection as rp
-from proSVD import proSVD
+import proSVD
 
 #%% loading processed matlab data
 # one mouse
-dataloc = './'
-file = 'WaksmanwithFaces_KS2.mat'
-matdict = sio.loadmat(dataloc+file, squeeze_me=True)
-spks = matdict['stall']
+dataloc = "/Users/jonathangould/Documents/Winter_2022/rotation_draelos/neuropixel_data/"
+file = "KrebswithFaces_KS2.mat"
+matdict = sio.loadmat(dataloc + file, squeeze_me=True)
+spks = matdict["stall"]
 
 # truncate so it doesn't take forever
 spks = spks[:, :15000]
@@ -75,6 +75,6 @@ for i, basis in enumerate(bases):
             projs[i][:, t:t+l] = curr_basis.T @ curr_neural
             t += l
 
-np.savez('neuropixel_reduced.npz', ssSVD10=proj_stream_ssSVD)
+np.savez('generated/neuropixel_reduced.npz', ssSVD10=proj_stream_ssSVD)
 
 # %%

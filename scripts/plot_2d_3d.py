@@ -11,16 +11,16 @@ fig = plt.figure(figsize=plt.figaspect(0.5))
 axs = fig.add_subplot(1, 2, 1)
 
 ### 2D vdp oscillator
-s = np.load('vdp_1trajectories_2dim_500to20500_noise0.05.npz')
+s = np.load('generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz')
 data = s['y'][0]
 
-A = np.load('vdp_2d_A.npy')
-mu = np.load('vdp_2d_mu.npy')
-L = np.load('vdp_2d_L.npy')
-n_obs = np.load('vdp_2d_n_obs.npy')
+A = np.load('generated/vdp_2d_A.npy')
+mu = np.load('generated/vdp_2d_mu.npy')
+L = np.load('generated/vdp_2d_L.npy')
+n_obs = np.load('generated/vdp_2d_n_obs.npy')
 
-pred = np.load('vdp_2d_pred.npy')
-entropy = np.load('vdp_2d_entropy.npy')
+pred = np.load('generated/vdp_2d_pred.npy')
+entropy = np.load('generated/vdp_2d_entropy.npy')
 
 axs.plot(data[:,0], data[:,1], color='gray', alpha=0.8)
 for n in np.arange(A.shape[0]):
@@ -64,16 +64,16 @@ old_shape = X.shape
 X = X.flatten()
 
 
-s = np.load('lorenz_1trajectories_3dim_500to20500_noise0.05.npz')
+s = np.load('generated/lorenz_1trajectories_3dim_500to20500_noise0.05.npz')
 data = s['y'][0]
 
-A = np.load('lorenz_3d_A.npy')
-mu = np.load('lorenz_3d_mu.npy')
-L = np.load('lorenz_3d_L.npy')
-n_obs = np.load('lorenz_3d_n_obs.npy')
+A = np.load('generated/lorenz_3d_A.npy')
+mu = np.load('generated/lorenz_3d_mu.npy')
+L = np.load('generated/lorenz_3d_L.npy')
+n_obs = np.load('generated/lorenz_3d_n_obs.npy')
 
-pred = np.load('lorenz_3d_pred.npy')
-entropy = np.load('lorenz_3d_entropy.npy')
+pred = np.load('generated/lorenz_3d_pred.npy')
+entropy = np.load('generated/lorenz_3d_entropy.npy')
 
 axs.plot(data[:,0], data[:,1], data[:,2], color='gray', alpha=0.8)
 for n in np.arange(A.shape[0]):

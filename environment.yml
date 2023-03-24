@@ -1,6 +1,7 @@
 name: bubblewrap
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - python=3.9
   - cudatoolkit=11.2
