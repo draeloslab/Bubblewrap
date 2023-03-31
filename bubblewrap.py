@@ -9,18 +9,19 @@ from jax.scipy.stats import multivariate_normal as jmvn
 from scipy.stats import multivariate_normal as mvn
 from jax.scipy.special import logsumexp as lse
 from jax import nn, random
+from functools import partial
 
 
 epsilon = 1e-10
 
 class Bubblewrap():
-    def __init__(self, num, dim, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1,lookahead_steps=1, go_fast = False):
+    def __init__(self, dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False):
         self.N = num            # Number of nodes
         self.d = dim            # dimension of the space
         self.seed = seed
         self.lam_0 = lam
         self.nu = nu
-        
+
         self.eps = eps
         self.B_thresh = B_thresh
         self.n_thresh = n_thresh
@@ -33,9 +34,13 @@ class Bubblewrap():
 
         self.printing = False
 
-        self.lookahead_steps = lookahead_steps
+        if type(lookahead_steps) == int:
+            self.lookahead_steps = (lookahead_steps,)
+        else:
+            self.lookahead_steps = lookahead_steps
+
         self.go_fast = go_fast
-        
+
         self.key = random.PRNGKey(self.seed)
         numpy.random.seed(self.seed)
 
@@ -44,7 +49,7 @@ class Bubblewrap():
         self.obs = Observations(self.d, M=M, go_fast=go_fast)
         self.get_mus0 = jit(vmap(get_mus, 0))
         self.mu_orig = None
-        
+
     def init_nodes(self):
         ### Based on observed data so far of length M
         self.mu = np.zeros((self.N, self.d))
@@ -108,11 +113,11 @@ class Bubblewrap():
         self.expB_jax = jit(expB)
         self.update_internal_jax = jit(update_internal)
         self.kill_nodes = jit(kill_dead_nodes)
-        self.log_pred_prob = jit(log_pred_prob)
-        self.pred_ahead = jit(pred_ahead)
+        self.pred_ahead = jit(pred_ahead, static_argnames=['steps_ahead'])
         self.sum_me = jit(sum_me)
         self.compute_L = jit(vmap(get_L, (0,0)))
         self.get_amax = jit(amax)
+        self.get_entropy = jit(entropy, static_argnames=['steps_ahead'])
 
         ## for adam gradients
         self.m_mu = np.zeros_like(self.mu)
@@ -132,7 +137,6 @@ class Bubblewrap():
     
         ## Variables for tracking progress
         self.pred = []
-        self.pred_far = []
         self.teleported_times = []
         self.time_em = []
         self.time_observe = []
@@ -180,11 +184,15 @@ class Bubblewrap():
 
         ### Compute log predictive probability and entropy; turn off for faster code 
         if not self.go_fast:
-            new_log_pred = self.log_pred_prob(self.B, self.A, self.alpha) 
-            self.pred.append(new_log_pred)
-            ent = entropy(self.A, self.alpha, 1)
-            self.entropy_list.append(ent)
-            self.pred_far.append(self.pred_ahead(self.B, self.A, self.alpha, 1))
+
+            new_pred = []
+            new_ent = []
+            for step in self.lookahead_steps:
+                new_pred.append(self.pred_ahead(self.B, self.A, self.alpha, step))
+                new_ent.append(self.get_entropy(self.A, self.alpha, step))
+
+            self.pred.append(new_pred)
+            self.entropy_list.append(new_ent)
 
         self.update_B(x)
 
@@ -375,18 +383,14 @@ def kill_dead_nodes(ind2, n_thresh, n_obs, S1, S2, En, log_A):
     log_A = log_A.at[:, ind2].set(np.zeros(N))
     return n_obs, S1, S2, En, log_A
 
-@jit
-def log_pred_prob(B, A, alpha):
-    return np.log(alpha @ A @ np.exp(B) + 1e-16)
-
-@jit
+# gets jit-ed later
 def pred_ahead(B, A, alpha, steps_ahead):
-    AT = np.linalg.matrix_power(A,1)
+    AT = np.linalg.matrix_power(A,steps_ahead)
     return np.log(alpha @ AT @ np.exp(B) + 1e-16)
 
-@jit
+# gets jit-ed later
 def entropy(A, alpha, steps_ahead):
-    AT = np.linalg.matrix_power(A,1)
+    AT = np.linalg.matrix_power(A,steps_ahead)
     one = alpha @ AT
     return - np.sum(one.dot(np.log2(alpha @ AT)))
 
@@ -399,7 +403,7 @@ class Observations:
         self.d = dim  # dimension of coordinate system
         self.go_fast = go_fast
 
-        self.curr = None 
+        self.curr = None
         self.saved_obs = deque(maxlen=self.M)
 
         self.mean = None

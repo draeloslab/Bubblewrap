@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = "0"
+# os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import time
 import numpy as np
@@ -29,20 +29,20 @@ from tqdm import tqdm
 # go_fast = False     # flag to skip computing priors, predictions, and entropy for optimal speed
 
 default_parameters = dict(
-N = 100,       
+num = 1000,
 lam = 1e-3,
-nu = 1e-3,      
-eps = 1e-3,     
-step = 8e-2,    
-M = 30,         
-B_thresh = -10, 
-batch = False,  
-batch_size = 1, 
+nu = 1e-3,
+eps = 1e-3,
+step = 8e-2,
+M = 30,
+B_thresh = -10,
+batch = False,
+batch_size = 1,
 go_fast = False,
+lookahead_steps = [1,10]
 )
-
-default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz"
-# default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.2.npz"
+# default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz"
+default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.2.npz"
 # default_file = "generated/lorenz_1trajectories_3dim_500to20500_noise0.05.npz"
 
 def run_bubblewrap(file, params):
@@ -53,20 +53,10 @@ def run_bubblewrap(file, params):
     d = data.shape[1]       # should be 2
 
 
-    bw = Bubblewrap(params["N"], 
-                    d, 
-                    step=params["step"], 
-                    lam=params["lam"], 
-                    M=params["M"], 
-                    eps=params["eps"], 
-                    nu=params["nu"], 
-                    B_thresh=params["B_thresh"], 
-                    batch=params["batch"], 
-                    batch_size=params["batch_size"], 
-                    go_fast=params["go_fast"]
-                    ) 
+    bw = Bubblewrap(d, **params)
 
     ## Set up for online run through dataset
+
     init = -params["M"]
     end = T-params["M"]
     step = params["batch_size"]
@@ -82,27 +72,38 @@ def run_bubblewrap(file, params):
     ## Run online, 1 data or batch at a time
     for i in tqdm(np.arange(init, end, step)):
         bw.observe(data[i+params["M"]:i+params["M"]+step])
-        bw.e_step()  
+        bw.e_step()
         bw.grad_Q()
     return bw
 
 
 
-def plot_bubblewrap_results(bw):
-    T = len(np.array(bw.pred_far)) # TODO: confirm that this T calculation is correct
+def plot_bubblewrap_results(bw, running_average_length=500):
+    T = len(bw.pred)
 
-    plt.figure()
-    plt.plot(bw.pred_far)
-    print('Mean pred ahead: ', np.mean(np.array(bw.pred_far)[-floor(T/2):]))
-    var_tmp = np.convolve(bw.pred_far, np.ones(500)/500, mode='valid')
-    plt.plot(var_tmp, 'k')
+    pred_mat = np.array(bw.pred)
+    ent_mat = np.array(bw.entropy_list)
 
 
-    plt.figure()
-    plt.plot(bw.entropy_list)
-    print('Mean entropy: ', np.mean(np.array(bw.entropy_list)[-floor(T/2):]))
-    var_tmp = np.convolve(bw.entropy_list, np.ones(500)/500, mode='valid')
-    plt.plot(var_tmp, 'k')
+    for step_n in range(len(bw.lookahead_steps)):
+        steps = bw.lookahead_steps[step_n]
+        fig, ax = plt.subplots(1, 2, sharex='all')
+        pred = pred_mat[:, step_n]
+        ax[0].plot(pred)
+        print(f'Mean pred ahead ({steps} steps): {np.mean(pred[-floor(T/2):])}')
+
+        var_tmp = np.convolve(pred, np.ones(running_average_length)/running_average_length, mode='valid')
+        var_tmp_x = np.arange(var_tmp.size) + running_average_length//2
+        ax[0].plot(var_tmp_x, var_tmp, 'k')
+        ax[0].set_title(f"Prediction ({steps} steps)")
+
+        ent = ent_mat[:, step_n]
+        ax[1].plot(ent)
+        print(f'Mean entropy ({steps} steps): {np.mean(ent[-floor(T/2):])}')
+        var_tmp = np.convolve(ent, np.ones(running_average_length)/running_average_length, mode='valid')
+        var_tmp_x = np.arange(var_tmp.size) + running_average_length//2
+        ax[1].plot(var_tmp_x, var_tmp, 'k')
+        ax[1].set_title(f"Entropy ({steps} steps)")
     plt.show()
 
 def save_data_for_later_plotting(bw,file):
