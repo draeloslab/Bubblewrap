@@ -136,7 +136,6 @@ class Bubblewrap():
         self.current_node = 0 
     
         ## Variables for tracking progress
-        self.pred = []
         self.teleported_times = []
         self.time_em = []
         self.time_observe = []
@@ -144,6 +143,7 @@ class Bubblewrap():
         self.time_grad_Q = []
         self.time_pred = []
         self.entropy_list = []
+        self.pred_list = []
         self.loss = []
 
         self.t = 1
@@ -191,7 +191,7 @@ class Bubblewrap():
                 new_pred.append(self.pred_ahead(self.B, self.A, self.alpha, step))
                 new_ent.append(self.get_entropy(self.A, self.alpha, step))
 
-            self.pred.append(new_pred)
+            self.pred_list.append(new_pred)
             self.entropy_list.append(new_ent)
 
         self.update_B(x)

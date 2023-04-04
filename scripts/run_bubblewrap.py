@@ -9,6 +9,9 @@ matplotlib.use('TkAgg')
 import matplotlib.pylab as plt
 from matplotlib.patches import Ellipse
 from mpl_toolkits.mplot3d import Axes3D
+import pickle
+import os
+import datetime
 
 from bubblewrap import Bubblewrap
 
@@ -29,7 +32,7 @@ from tqdm import tqdm
 # go_fast = False     # flag to skip computing priors, predictions, and entropy for optimal speed
 
 default_parameters = dict(
-num = 1000,
+num = 100,
 lam = 1e-3,
 nu = 1e-3,
 eps = 1e-3,
@@ -79,9 +82,9 @@ def run_bubblewrap(file, params):
 
 
 def plot_bubblewrap_results(bw, running_average_length=500):
-    T = len(bw.pred)
+    T = len(bw.pred_list)
 
-    pred_mat = np.array(bw.pred)
+    pred_mat = np.array(bw.pred_list)
     ent_mat = np.array(bw.entropy_list)
 
 
@@ -116,9 +119,27 @@ def save_data_for_later_plotting(bw,file):
     mu = np.save(f"generated/{prefix}_mu.npy", bw.mu)
     L = np.save(f"generated/{prefix}_L.npy", bw.L)
     n_obs = np.save(f"generated/{prefix}_n_obs.npy", bw.n_obs)
-    pred = np.save(f"generated/{prefix}_pred.npy", bw.pred)
+    pred = np.save(f"generated/{prefix}_pred.npy", bw.pred_list)
     entropy = np.save(f"generated/{prefix}_entropy.npy", bw.entropy_list)
 
+class BubblewrapRun:
+    # TODO: if we go forward with this, I need to clean up the previous plotting/saving stuff
+    def __init__(self, bw: Bubblewrap, file, bw_parameters=None):
+        self.file = file
+        self.bw_parameters = bw_parameters
+
+        self.A = bw.A
+        self.mu = bw.mu
+        self.L = bw.L
+        self.n_obs = bw.n_obs
+        self.pred_list = np.array(bw.pred_list)
+        self.entropy_list = np.array(bw.entropy_list)
+        self.dead_nodes = bw.dead_nodes
+
+    def save(self, dir="generated"):
+        time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
+        with open(os.path.join(dir, f"bubblewrap_run_{time_string}.pickle"), "wb") as fhan:
+            pickle.dump(self, fhan)
 
 
 if __name__ == "__main__":
@@ -127,5 +148,5 @@ if __name__ == "__main__":
     plot_bubblewrap_results(bw)
     save_data_for_later_plotting(bw, default_file)
 
-
-
+    br = BubblewrapRun(bw,file=default_file, bw_parameters=default_parameters)
+    br.save()

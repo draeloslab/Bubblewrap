@@ -1,3 +1,4 @@
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -150,3 +151,6 @@ data/
 # see https://stackoverflow.com/a/4824199
 *~
 .*.sw?
+
+# generated data files
+*.pickle
