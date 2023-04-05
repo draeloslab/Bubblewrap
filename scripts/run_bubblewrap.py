@@ -18,7 +18,6 @@ from bubblewrap import Bubblewrap
 from math import atan2, floor
 from tqdm import tqdm
 
-
 # ## Parameters
 # N = 1000             # number of nodes to tile with
 # lam = 1e-3          # lambda 
@@ -42,11 +41,18 @@ B_thresh = -10,
 batch = False,
 batch_size = 1,
 go_fast = False,
-lookahead_steps = [1,10]
+lookahead_steps = [1,10],
+seed=42,
 )
-# default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz"
-default_file = "generated/vdp_1trajectories_2dim_500to20500_noise0.2.npz"
-# default_file = "generated/lorenz_1trajectories_3dim_500to20500_noise0.05.npz"
+
+generated_files = [
+    "./generated/lorenz_1trajectories_3dim_500to20500_noise0.2.npz",
+    "./generated/lorenz_1trajectories_3dim_500to20500_noise0.05.npz",
+    "./generated/vdp_1trajectories_2dim_500to20500_noise0.2.npz",
+    "./generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz",
+]
+
+default_file = generated_files[1]
 
 def run_bubblewrap(file, params):
     s = np.load(file)
@@ -122,11 +128,37 @@ def save_data_for_later_plotting(bw,file):
     pred = np.save(f"generated/{prefix}_pred.npy", bw.pred_list)
     entropy = np.save(f"generated/{prefix}_entropy.npy", bw.entropy_list)
 
+
+def parameter_list(variable_parameters=None):
+    rng = np.random.default_rng()
+
+    if variable_parameters is None:
+        variable_parameters = dict(
+            num=[16, 256, 1024],
+            lam=[1e-4, 1e-3, 1e-3, 1e-3, 1e-2],
+            nu= [1e-4, 1e-3, 1e-3, 1e-3, 1e-2],
+            eps=[1e-4, 1e-3, 1e-2],
+            B_thresh=[-15, -10, -5],
+            seed=[10 * x for x in range(100)]
+        )
+    while True:
+        d = dict(default_parameters)
+        for key, value in variable_parameters.items():
+            d[key] = rng.choice(value)
+        f = rng.choice(generated_files)
+        yield d, f
+
+
+
+
 class BubblewrapRun:
     # TODO: if we go forward with this, I need to clean up the previous plotting/saving stuff
-    def __init__(self, bw: Bubblewrap, file, bw_parameters=None):
+    def __init__(self, bw: Bubblewrap, file, bw_parameters=None, time_to_run=None):
         self.file = file
         self.bw_parameters = bw_parameters
+        if bw_parameters and "seed" not in bw_parameters:
+            self.bw_parameters["seed"] = 42
+        self.time_to_run = time_to_run
 
         self.A = bw.A
         self.mu = bw.mu
@@ -137,16 +169,31 @@ class BubblewrapRun:
         self.dead_nodes = bw.dead_nodes
 
     def save(self, dir="generated"):
-        time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')
+        time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         with open(os.path.join(dir, f"bubblewrap_run_{time_string}.pickle"), "wb") as fhan:
             pickle.dump(self, fhan)
 
 
-if __name__ == "__main__":
+def run_defaults():
     bw = run_bubblewrap(default_file, default_parameters)
 
     plot_bubblewrap_results(bw)
-    save_data_for_later_plotting(bw, default_file)
 
-    br = BubblewrapRun(bw,file=default_file, bw_parameters=default_parameters)
+    br = BubblewrapRun(bw, file=default_file, bw_parameters=default_parameters)
     br.save()
+
+def main():
+    for p, f in parameter_list():
+        try:
+            start_time = time.time()
+            bw = run_bubblewrap(default_file, p)
+            end_time = time.time()
+            br = BubblewrapRun(bw, file=f, bw_parameters=p, time_to_run=end_time-start_time)
+            br.save()
+        except Exception as e:
+            if isinstance(e, KeyboardInterrupt):
+                raise e
+
+
+if __name__ == "__main__":
+    main()
