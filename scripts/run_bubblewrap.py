@@ -52,7 +52,7 @@ generated_files = [
     "./generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz",
 ]
 
-default_file = generated_files[1]
+default_file = generated_files[2]
 
 def run_bubblewrap(file, params):
     s = np.load(file)
@@ -129,14 +129,14 @@ def save_data_for_later_plotting(bw,file):
     entropy = np.save(f"generated/{prefix}_entropy.npy", bw.entropy_list)
 
 
-def parameter_list(variable_parameters=None):
+def generate_random_bw_hyperparameters(variable_parameters=None):
     rng = np.random.default_rng()
 
     if variable_parameters is None:
         variable_parameters = dict(
             num=[16, 256, 1024],
             lam=[1e-4, 1e-3, 1e-3, 1e-3, 1e-2],
-            nu= [1e-4, 1e-3, 1e-3, 1e-3, 1e-2],
+            nu=[1e-4, 1e-3, 1e-3, 1e-3, 1e-2],
             eps=[1e-4, 1e-3, 1e-2],
             B_thresh=[-15, -10, -5],
             seed=[10 * x for x in range(100)]
@@ -150,25 +150,21 @@ def parameter_list(variable_parameters=None):
 
 
 
-
 class BubblewrapRun:
-    # TODO: if we go forward with this, I need to clean up the previous plotting/saving stuff
     def __init__(self, bw: Bubblewrap, file, bw_parameters=None, time_to_run=None):
         self.file = file
         self.bw_parameters = bw_parameters
-        if bw_parameters and "seed" not in bw_parameters:
-            self.bw_parameters["seed"] = 42
         self.time_to_run = time_to_run
 
-        self.A = bw.A
-        self.mu = bw.mu
-        self.L = bw.L
-        self.n_obs = bw.n_obs
+        self.A = np.array(bw.A)
+        self.mu = np.array(bw.mu)
+        self.L = np.array(bw.L)
+        self.n_obs = np.array(bw.n_obs)
         self.pred_list = np.array(bw.pred_list)
         self.entropy_list = np.array(bw.entropy_list)
-        self.dead_nodes = bw.dead_nodes
+        self.dead_nodes = np.array(bw.dead_nodes)
 
-    def save(self, dir="generated"):
+    def save(self, dir="generated/bubblewrap_runs"):
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         with open(os.path.join(dir, f"bubblewrap_run_{time_string}.pickle"), "wb") as fhan:
             pickle.dump(self, fhan)
@@ -176,14 +172,13 @@ class BubblewrapRun:
 
 def run_defaults():
     bw = run_bubblewrap(default_file, default_parameters)
-
     plot_bubblewrap_results(bw)
-
     br = BubblewrapRun(bw, file=default_file, bw_parameters=default_parameters)
     br.save()
 
-def main():
-    for p, f in parameter_list():
+
+def do_many_random_runs():
+    for p, f in generate_random_bw_hyperparameters():
         try:
             start_time = time.time()
             bw = run_bubblewrap(default_file, p)
@@ -196,4 +191,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_defaults()
