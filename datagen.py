@@ -6,7 +6,7 @@ from scipy.integrate import solve_ivp
 from tqdm import trange
 
 
-def lorenz(t, y: np.ndarray, s=10.0, r=28.0, b=2.667):
+def lorenz(t, y: np.ndarray, s=10., r=28., b=2.667):
     """
     copy & pasted here in order to avoid importing jax, which doesn't run on M1 macs
     """
@@ -16,10 +16,10 @@ def lorenz(t, y: np.ndarray, s=10.0, r=28.0, b=2.667):
     return x_dot, y_dot, z_dot
 
 
-def vdp(t, f, mu=1.0):  # 2D
+def vdp(t, f, mu=1.):  # 2D
     x, y = f
     x_dot = y
-    y_dot = mu * (1 - x**2) * y - x
+    y_dot = mu * (1 - x ** 2) * y - x
     return x_dot, y_dot
 
 
