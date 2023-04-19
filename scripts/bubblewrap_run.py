@@ -1,10 +1,15 @@
-
+from bubblewrap import Bubblewrap
+import numpy as np
+import datetime
+import pickle
+import os
 
 class BubblewrapRun:
     def __init__(self, bw: Bubblewrap, file, bw_parameters=None, time_to_run=None):
         self.file = file
         self.bw_parameters = bw_parameters
         self.time_to_run = time_to_run
+        self.outfile = None
 
         self.A = np.array(bw.A)
         self.mu = np.array(bw.mu)
@@ -16,5 +21,6 @@ class BubblewrapRun:
 
     def save(self, dir="generated/bubblewrap_runs"):
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        with open(os.path.join(dir, f"bubblewrap_run_{time_string}.pickle"), "wb") as fhan:
+        self.outfile = os.path.join(dir, f"bubblewrap_run_{time_string}.pickle")
+        with open(self.outfile, "wb") as fhan:
             pickle.dump(self, fhan)

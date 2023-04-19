@@ -5,15 +5,12 @@ import time
 import numpy as np
 
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('QtAgg')
 import matplotlib.pylab as plt
-from matplotlib.patches import Ellipse
-from mpl_toolkits.mplot3d import Axes3D
-import pickle
-import os
-import datetime
 
 from bubblewrap import Bubblewrap
+from plot_2d_3d import plot_2d
+from bubblewrap_run import BubblewrapRun
 
 from math import atan2, floor
 from tqdm import tqdm
@@ -31,7 +28,7 @@ from tqdm import tqdm
 # go_fast = False     # flag to skip computing priors, predictions, and entropy for optimal speed
 
 default_parameters = dict(
-num = 100,
+num = 20,
 lam = 1e-3,
 nu = 1e-3,
 eps = 1e-3,
@@ -50,9 +47,10 @@ generated_files = [
     "./generated/lorenz_1trajectories_3dim_500to20500_noise0.05.npz",
     "./generated/vdp_1trajectories_2dim_500to20500_noise0.2.npz",
     "./generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz",
+    "./generated/clock.npz",
 ]
 
-default_file = generated_files[2]
+default_file = generated_files[-1]
 
 def run_bubblewrap(file, params):
     s = np.load(file)
@@ -85,6 +83,67 @@ def run_bubblewrap(file, params):
         bw.grad_Q()
     return bw
 
+def run_bubblewrap_with_movie(file, params, keep_every_th=10):
+    from matplotlib.animation import FFMpegFileWriter
+
+    fig, ax = plt.subplots(1, 2, figsize=(10,5), squeeze=True)
+
+    moviewriter = FFMpegFileWriter(fps=20)
+    moviewriter.setup(fig, "generated/movie.mp4", dpi=100)
+
+    s = np.load(file)
+    data = s['y'][0]
+
+    T = data.shape[0]       # should be 20k
+    d = data.shape[1]       # should be 2
+
+
+    bw = Bubblewrap(d, **params)
+
+    ## Set up for online run through dataset
+
+    init = -params["M"]
+    end = T-params["M"]
+    step = params["batch_size"]
+
+    ## Initialize things
+    for i in np.arange(0, params["M"], step):
+        if params["batch"]:
+            bw.observe(data[i:i+step])
+        else:
+            bw.observe(data[i])
+    bw.init_nodes()
+
+    ## Run online, 1 data or batch at a time
+    for i in tqdm(np.arange(init, end, step)):
+        bw.observe(data[i+params["M"]:i+params["M"]+step])
+        bw.e_step()
+        bw.grad_Q()
+
+        assert step == 1 # the keep_every_th assumes the step is 1
+        if i % keep_every_th == 0:
+            ax[0].cla()
+
+
+            d = data[0:i+params["M"]+step]
+            plot_2d(ax[0], d, bw.A, bw.mu, bw.L, np.array(bw.n_obs))
+
+            d = data[i+params["M"]- (keep_every_th-1)*step:i+params["M"]+step]
+            ax[0].plot(d[:,0], d[:,1], 'k.')
+
+            ax[1].cla()
+            ims = ax[1].imshow(bw.A, aspect='equal', interpolation='nearest')
+            # fig.colorbar(ims)
+
+            ax[0].set_title("Observation Model")
+            ax[1].set_title("Transition Matrix")
+            ax[1].set_xlabel("To")
+            ax[1].set_ylabel("From")
+
+
+            moviewriter.grab_frame()
+    moviewriter.finish()
+    return bw, moviewriter
 
 
 def plot_bubblewrap_results(bw, running_average_length=500):
@@ -92,7 +151,6 @@ def plot_bubblewrap_results(bw, running_average_length=500):
 
     pred_mat = np.array(bw.pred_list)
     ent_mat = np.array(bw.entropy_list)
-
 
     for step_n in range(len(bw.lookahead_steps)):
         steps = bw.lookahead_steps[step_n]
@@ -149,32 +207,41 @@ def generate_random_bw_hyperparameters(variable_parameters=None):
         yield d, f
 
 
-
-class BubblewrapRun:
-    def __init__(self, bw: Bubblewrap, file, bw_parameters=None, time_to_run=None):
-        self.file = file
-        self.bw_parameters = bw_parameters
-        self.time_to_run = time_to_run
-
-        self.A = np.array(bw.A)
-        self.mu = np.array(bw.mu)
-        self.L = np.array(bw.L)
-        self.n_obs = np.array(bw.n_obs)
-        self.pred_list = np.array(bw.pred_list)
-        self.entropy_list = np.array(bw.entropy_list)
-        self.dead_nodes = np.array(bw.dead_nodes)
-
-    def save(self, dir="generated/bubblewrap_runs"):
-        time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        with open(os.path.join(dir, f"bubblewrap_run_{time_string}.pickle"), "wb") as fhan:
-            pickle.dump(self, fhan)
-
-
 def run_defaults():
     bw = run_bubblewrap(default_file, default_parameters)
     plot_bubblewrap_results(bw)
     br = BubblewrapRun(bw, file=default_file, bw_parameters=default_parameters)
     br.save()
+
+def movie():
+    parameters = dict(
+        num=10,
+        lam=1e-3,
+        nu=1e-3,
+        eps=1e-3,
+        step=8e-2,
+        M=30,
+        B_thresh=-10,
+        batch=False,
+        batch_size=1,
+        go_fast=False,
+        lookahead_steps=[1, 10],
+        seed=42,
+    )
+
+    # file = "./generated/clock-04-14-16-19.npz"
+    file = "./generated/clock-04-18-18-12.npz"
+    bw, moviewriter = run_bubblewrap_with_movie(file, parameters, keep_every_th=10)
+    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br.save()
+
+    old_fname = moviewriter.outfile.split(".")
+    new_fname = br.outfile.split(".")
+
+    new_fname[-1] = old_fname[-1]
+    os.rename(moviewriter.outfile, ".".join(new_fname))
+
+    plot_bubblewrap_results(bw)
 
 
 def do_many_random_runs():
@@ -191,4 +258,4 @@ def do_many_random_runs():
 
 
 if __name__ == "__main__":
-    run_defaults()
+    movie()

@@ -4,28 +4,21 @@ import matplotlib
 import matplotlib.pylab as plt
 from matplotlib.patches import Ellipse
 from math import atan2, floor
-from run_bubblewrap import BubblewrapRun
+from bubblewrap_run import BubblewrapRun
 
-matplotlib.use('TkAgg')
+matplotlib.use('QtAgg')
 
-def plot_vdp(br):
-
+def br_plot_2d(br):
     fig, ax = plt.subplots()
-
-    ### 2D vdp oscillator
     s = np.load(br.file)
     data = s['y'][0]
-
-    A = br.A
-    mu = br.mu
-    L = br.L
     n_obs = np.array(br.n_obs)
+    plot_2d(ax, data, br.A, br.mu, br.L, n_obs)
+    plt.show()
 
-    # TODO: make these not lists
-    pred = br.pred_list[:,0]
-    entropy = br.entropy_list[:,0]
-
-    ax.plot(data[:,0], data[:,1], color='gray', alpha=0.8)
+def plot_2d(ax, data, A, mu, L, n_obs):
+    ax.cla()
+    ax.plot(data[:,0], data[:,1], '.', color='gray', alpha=0.8)
     for n in np.arange(A.shape[0]):
         if n_obs[n] > 0.2:
             el = np.linalg.inv(L[n])
@@ -33,27 +26,21 @@ def plot_vdp(br):
             u,s,v = np.linalg.svd(sig)
             width, height = np.sqrt(s[0])*3, np.sqrt(s[1])*3
             angle = atan2(v[0,1],v[0,0])*360 / (2*np.pi)
-            el = Ellipse((mu[n,0], mu[n,1]), width, height, angle, zorder=8)
+            el = Ellipse((mu[n,0], mu[n,1]), width, height, angle=angle, zorder=8)
             el.set_alpha(0.4)
             el.set_clip_box(ax.bbox)
             el.set_facecolor('#ed6713')
             ax.add_artist(el)
+            ax.text(mu[n,0] + .3,mu[n,1] + .3,str(n))
 
     mask = np.ones(mu.shape[0], dtype=bool)
-    mask[n_obs<1] = False
-    ax.scatter(mu[mask,0], mu[mask,1], c='k' , zorder=10)
-
-    ax.set_xticks([-2, -1, 0, 1, 2])
-    ax.set_yticks([-6, -3, 0, 3, 6])
-
-    in1, in2 = -0.15, 1
-    ax.text(in1, in2, s='a', transform=ax.transAxes, fontsize=16, fontweight='bold', va='top', ha='right')
-    plt.show()
+    mask[n_obs < 1] = False
+    ax.scatter(mu[mask, 0], mu[mask, 1], c='k', zorder=10)
 
 
 
-def plot_lorenz(br):
-
+def br_plot_3d(br):
+    # TODO: make a plot_3d like above
     fig = plt.figure()
     ax = plt.axes(projection="3d")
 
@@ -128,12 +115,17 @@ def plot(fname):
     with open(fname, "rb") as fhan:
         br: BubblewrapRun = pickle.load(fhan)
     if "vdp" in br.file:
-        plot_vdp(br)
+        br_plot_2d(br)
     elif "lorenz" in br.file:
-        plot_lorenz(br)
+        br_plot_3d(br)
+    elif "clock" in br.file:
+        br_plot_2d(br)
     else:
         raise Exception("Cannot detect trajectory type from saved file.")
 
 
 if __name__ == '__main__':
-    plot("generated/bubblewrap_runs/bubblewrap_run_2023-04-05-18-12-14.pickle")
+    import glob
+    files = glob.glob("generated/bubblewrap_runs/bubblewrap_run_2023*")
+    files.sort()
+    plot(files[-1])
