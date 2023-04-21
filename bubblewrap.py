@@ -167,16 +167,16 @@ class Bubblewrap():
             self.sigma_orig = self.obs.cov * (self.nu + self.d + 1) / (self.N**(2/self.d))   
          
 
-    def e_step(self):
+    def e_step(self, future_observations=None):
         # take E step; after observation
         if self.batch:
-            for o in self.obs.saved_obs:
-                self.single_e_step(o)
+            for index, o in enumerate(self.obs.saved_obs):
+                self.single_e_step(o, future_observations=future_observations[index])
         else:
-            self.single_e_step(self.obs.curr)
+            self.single_e_step(self.obs.curr, future_observations=future_observations)
 
 
-    def single_e_step(self, x):
+    def single_e_step(self, x, future_observations=None):
 
         self.beta = 1 + 10/(self.t+1)
 
@@ -187,8 +187,8 @@ class Bubblewrap():
 
             new_pred = []
             new_ent = []
-            for step in self.lookahead_steps:
-                new_pred.append(self.pred_ahead(self.B, self.A, self.alpha, step))
+            for idx, step in enumerate(self.lookahead_steps):
+                new_pred.append(self.pred_ahead(self.logB_jax(future_observations[idx], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
                 new_ent.append(self.get_entropy(self.A, self.alpha, step))
 
             self.pred_list.append(new_pred)

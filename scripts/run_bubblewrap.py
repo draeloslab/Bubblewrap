@@ -81,7 +81,8 @@ def run_bubblewrap(file, params):
     ## Run online, 1 data or batch at a time
     for i in tqdm(np.arange(init, end, step)):
         bw.observe(data[i+params["M"]:i+params["M"]+step])
-        bw.e_step()
+        future_observations = [data[i+params["M"]:i+params["M"]+step + x] for x in bw.lookahead_steps]  # todo: check for off-by-one errors
+        bw.e_step(future_observations)
         bw.grad_Q()
     return bw
 
@@ -119,7 +120,8 @@ def run_bubblewrap_with_movie(file, params, keep_every_th=10):
     ## Run online, 1 data or batch at a time
     for i in tqdm(np.arange(init, end, step)):
         bw.observe(data[i+params["M"]:i+params["M"]+step])
-        bw.e_step()
+        future_observations = [data[i+params["M"]:i+params["M"]+step + x] for x in bw.lookahead_steps]  # todo: check for off-by-one errors
+        bw.e_step(future_observations)
         bw.grad_Q()
 
         assert step == 1 # the keep_every_th assumes the step is 1
