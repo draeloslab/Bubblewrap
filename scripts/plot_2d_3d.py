@@ -16,11 +16,12 @@ def br_plot_2d(br):
     plot_2d(ax, data, br.A, br.mu, br.L, n_obs)
     plt.show()
 
-def plot_2d(ax, data, A, mu, L, n_obs):
+def plot_2d(ax, data, A, mu, L, n_obs, bw):
+    # todo: remove bw
     ax.cla()
     ax.plot(data[:,0], data[:,1], '.', color='gray', alpha=0.8)
     for n in np.arange(A.shape[0]):
-        if n_obs[n] > 0.2:
+        if n not in bw.dead_nodes:
             el = np.linalg.inv(L[n])
             sig = el.T @ el
             u,s,v = np.linalg.svd(sig)
@@ -34,7 +35,8 @@ def plot_2d(ax, data, A, mu, L, n_obs):
             ax.text(mu[n,0] + .3,mu[n,1] + .3,str(n))
 
     mask = np.ones(mu.shape[0], dtype=bool)
-    mask[n_obs < 1] = False
+    mask[n_obs < .1] = False
+    mask[bw.dead_nodes] = False
     ax.scatter(mu[mask, 0], mu[mask, 1], c='k', zorder=10)
 
 

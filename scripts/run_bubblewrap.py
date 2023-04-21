@@ -15,6 +15,8 @@ from bubblewrap_run import BubblewrapRun
 from math import atan2, floor
 from tqdm import tqdm
 
+# todo: unify movie and non-movie functions
+
 # ## Parameters
 # N = 1000             # number of nodes to tile with
 # lam = 1e-3          # lambda 
@@ -126,7 +128,7 @@ def run_bubblewrap_with_movie(file, params, keep_every_th=10):
 
 
             d = data[0:i+params["M"]+step]
-            plot_2d(ax[0], d, bw.A, bw.mu, bw.L, np.array(bw.n_obs))
+            plot_2d(ax[0], d, bw.A, bw.mu, bw.L, np.array(bw.n_obs), bw)
 
             d = data[i+params["M"]- (keep_every_th-1)*step:i+params["M"]+step]
             ax[0].plot(d[:,0], d[:,1], 'k.')
@@ -140,7 +142,11 @@ def run_bubblewrap_with_movie(file, params, keep_every_th=10):
             ax[1].set_xlabel("To")
             ax[1].set_ylabel("From")
 
+            ax[1].set_xticks(np.arange(bw.N))
+            live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
+            ax[1].set_yticks(live_nodes)
 
+            # plt.show()
             moviewriter.grab_frame()
     moviewriter.finish()
     return bw, moviewriter
@@ -215,7 +221,7 @@ def run_defaults():
 
 def movie():
     parameters = dict(
-        num=10,
+        num=14,
         lam=1e-3,
         nu=1e-3,
         eps=1e-3,
@@ -231,6 +237,8 @@ def movie():
 
     # file = "./generated/clock-04-14-16-19.npz"
     file = "./generated/clock-04-18-18-12.npz"
+    # file = "./generated/clock-04-18-17-47.npz"
+
     bw, moviewriter = run_bubblewrap_with_movie(file, parameters, keep_every_th=10)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
