@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('QtAgg')
 import matplotlib.pylab as plt
+from matplotlib.animation import FFMpegFileWriter
 
 from bubblewrap import Bubblewrap
 from plot_2d_3d import plot_2d
@@ -30,86 +31,53 @@ from tqdm import tqdm
 # go_fast = False     # flag to skip computing priors, predictions, and entropy for optimal speed
 
 default_parameters = dict(
-num = 20,
-lam = 1e-3,
-nu = 1e-3,
-eps = 1e-3,
-step = 8e-2,
-M = 30,
-B_thresh = -10,
-batch = False,
-batch_size = 1,
-go_fast = False,
-lookahead_steps = [1,10],
-seed=42,
+    num=1000,
+    lam=1e-3,
+    nu=1e-3,
+    eps=1e-3,
+    step=8e-2,
+    M=30,
+    B_thresh=-10,
+    batch=False,
+    batch_size=1,
+    go_fast=False,
+    lookahead_steps=[],
+    seed=42,
 )
 
-generated_files = [
-    "./generated/lorenz_1trajectories_3dim_500to20500_noise0.2.npz",
-    "./generated/lorenz_1trajectories_3dim_500to20500_noise0.05.npz",
-    "./generated/vdp_1trajectories_2dim_500to20500_noise0.2.npz",
-    "./generated/vdp_1trajectories_2dim_500to20500_noise0.05.npz",
-    "./generated/clock.npz",
-]
+def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None):
+    """this runs bubblewrap; it also generates a movie if `keep_every_nth_frame` is not None"""
+    if keep_every_nth_frame is not None:
+        fig, ax = plt.subplots(1, 2, figsize=(10,5), squeeze=True)
 
-default_file = generated_files[-1]
+        moviewriter = FFMpegFileWriter(fps=20)
+        moviewriter.setup(fig, "generated/movie.mp4", dpi=100)
+    else:
+        moviewriter = None
 
-def run_bubblewrap(file, params):
     s = np.load(file)
-    data = s['y'][0]
 
-    T = data.shape[0]       # should be 20k
-    d = data.shape[1]       # should be 2
+    # todo: give all files uniform format
+    if "jpca" in file:
+        data = s.T
+    elif "neuropixel" in file:
+        data = s['ssSVD10'].T
+        # data = s['ssSVD20'].T
+    else:
+        data = s['y'][0]
 
-
+    T = data.shape[0]       # should be big (like 20k)
+    d = data.shape[1]       # should be small-ish (like 2)
     bw = Bubblewrap(d, **params)
 
     ## Set up for online run through dataset
 
     init = -params["M"]
-    end = T-params["M"]
+    if end is None:
+        end = T-(params["M"] + max(bw.lookahead_steps))
     step = params["batch_size"]
 
-    ## Initialize things
-    for i in np.arange(0, params["M"], step): 
-        if params["batch"]:
-            bw.observe(data[i:i+step]) 
-        else:
-            bw.observe(data[i])
-    bw.init_nodes()
-
-    ## Run online, 1 data or batch at a time
-    for i in tqdm(np.arange(init, end, step)):
-        bw.observe(data[i+params["M"]:i+params["M"]+step])
-        future_observations = [data[i+params["M"]:i+params["M"]+step + x] for x in bw.lookahead_steps]  # todo: check for off-by-one errors
-        bw.e_step(future_observations)
-        bw.grad_Q()
-    return bw
-
-def run_bubblewrap_with_movie(file, params, keep_every_th=10):
-    from matplotlib.animation import FFMpegFileWriter
-
-    fig, ax = plt.subplots(1, 2, figsize=(10,5), squeeze=True)
-
-    moviewriter = FFMpegFileWriter(fps=20)
-    moviewriter.setup(fig, "generated/movie.mp4", dpi=100)
-
-    s = np.load(file)
-    data = s['y'][0]
-
-    T = data.shape[0]       # should be 20k
-    d = data.shape[1]       # should be 2
-
-
-    bw = Bubblewrap(d, **params)
-
-    ## Set up for online run through dataset
-
-    init = -params["M"]
-    end = T-params["M"]
-    step = params["batch_size"]
-
-    ## Initialize things
+    # Initialize things
     for i in np.arange(0, params["M"], step):
         if params["batch"]:
             bw.observe(data[i:i+step])
@@ -117,40 +85,41 @@ def run_bubblewrap_with_movie(file, params, keep_every_th=10):
             bw.observe(data[i])
     bw.init_nodes()
 
-    ## Run online, 1 data or batch at a time
+    # Run online, 1 data or batch at a time
     for i in tqdm(np.arange(init, end, step)):
         bw.observe(data[i+params["M"]:i+params["M"]+step])
-        future_observations = [data[i+params["M"]:i+params["M"]+step + x] for x in bw.lookahead_steps]  # todo: check for off-by-one errors
-        bw.e_step(future_observations)
+        future_observations = [data[i+params["M"]+step + x - 2:i+params["M"]+step + x - 1] for x in bw.lookahead_steps]
+        bw.e_step(future_observations, do_it_old_way=do_it_old_way)
         bw.grad_Q()
 
-        assert step == 1 # the keep_every_th assumes the step is 1
-        if i % keep_every_th == 0:
-            ax[0].cla()
+        if keep_every_nth_frame is not None:
+            assert step == 1 # the keep_every_th assumes the step is 1
+            if i % keep_every_nth_frame == 0:
+                ax[0].cla()
 
 
-            d = data[0:i+params["M"]+step]
-            plot_2d(ax[0], d, bw.A, bw.mu, bw.L, np.array(bw.n_obs), bw)
+                d = data[0:i+params["M"]+step]
+                plot_2d(ax[0], d, bw.A, bw.mu, bw.L, np.array(bw.n_obs), bw)
 
-            d = data[i+params["M"]- (keep_every_th-1)*step:i+params["M"]+step]
-            ax[0].plot(d[:,0], d[:,1], 'k.')
+                d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
+                ax[0].plot(d[:,0], d[:,1], 'k.')
 
-            ax[1].cla()
-            ims = ax[1].imshow(bw.A, aspect='equal', interpolation='nearest')
-            # fig.colorbar(ims)
+                ax[1].cla()
+                ims = ax[1].imshow(bw.A, aspect='equal', interpolation='nearest')
+                # fig.colorbar(ims)
 
-            ax[0].set_title("Observation Model")
-            ax[1].set_title("Transition Matrix")
-            ax[1].set_xlabel("To")
-            ax[1].set_ylabel("From")
+                ax[0].set_title("Observation Model")
+                ax[1].set_title("Transition Matrix")
+                ax[1].set_xlabel("To")
+                ax[1].set_ylabel("From")
 
-            ax[1].set_xticks(np.arange(bw.N))
-            live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
-            ax[1].set_yticks(live_nodes)
+                ax[1].set_xticks(np.arange(bw.N))
+                live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
+                ax[1].set_yticks(live_nodes)
 
-            # plt.show()
-            moviewriter.grab_frame()
-    moviewriter.finish()
+                moviewriter.grab_frame()
+    if keep_every_nth_frame is not None:
+        moviewriter.finish()
     return bw, moviewriter
 
 
@@ -181,91 +150,54 @@ def plot_bubblewrap_results(bw, running_average_length=500):
         ax[1].set_title(f"Entropy ({steps} steps)")
     plt.show()
 
-def save_data_for_later_plotting(bw,file):
-    # file is the original file that bubblewrap ran on
-    if "vdp" in file:
-        prefix = "vdp_2d"
-    else:
-        prefix = "lorenz_3d"
-    A = np.save(f"generated/{prefix}_A.npy", bw.A)
-    mu = np.save(f"generated/{prefix}_mu.npy", bw.mu)
-    L = np.save(f"generated/{prefix}_L.npy", bw.L)
-    n_obs = np.save(f"generated/{prefix}_n_obs.npy", bw.n_obs)
-    pred = np.save(f"generated/{prefix}_pred.npy", bw.pred_list)
-    entropy = np.save(f"generated/{prefix}_entropy.npy", bw.entropy_list)
-
-
-def generate_random_bw_hyperparameters(variable_parameters=None):
-    rng = np.random.default_rng()
-
-    if variable_parameters is None:
-        variable_parameters = dict(
-            num=[16, 256, 1024],
-            lam=[1e-4, 1e-3, 1e-3, 1e-3, 1e-2],
-            nu=[1e-4, 1e-3, 1e-3, 1e-3, 1e-2],
-            eps=[1e-4, 1e-3, 1e-2],
-            B_thresh=[-15, -10, -5],
-            seed=[10 * x for x in range(100)]
-        )
-    while True:
-        d = dict(default_parameters)
-        for key, value in variable_parameters.items():
-            d[key] = rng.choice(value)
-        f = rng.choice(generated_files)
-        yield d, f
-
-
-def run_defaults():
-    bw = run_bubblewrap(default_file, default_parameters)
+def run_defaults(file):
+    bw,_ = run_bubblewrap(file, default_parameters)
     plot_bubblewrap_results(bw)
-    br = BubblewrapRun(bw, file=default_file, bw_parameters=default_parameters)
+    br,_ = BubblewrapRun(bw, file=file, bw_parameters=default_parameters)
     br.save()
-
-def movie():
-    parameters = dict(
-        num=14,
-        lam=1e-3,
-        nu=1e-3,
-        eps=1e-3,
-        step=8e-2,
-        M=30,
-        B_thresh=-10,
-        batch=False,
-        batch_size=1,
-        go_fast=False,
-        lookahead_steps=[1, 10],
-        seed=42,
-    )
-
-    # file = "./generated/clock-04-14-16-19.npz"
-    file = "./generated/clock-04-18-18-12.npz"
-    # file = "./generated/clock-04-18-17-47.npz"
-
-    bw, moviewriter = run_bubblewrap_with_movie(file, parameters, keep_every_th=10)
-    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
-    br.save()
-
-    old_fname = moviewriter.outfile.split(".")
-    new_fname = br.outfile.split(".")
-
-    new_fname[-1] = old_fname[-1]
-    os.rename(moviewriter.outfile, ".".join(new_fname))
-
-    plot_bubblewrap_results(bw)
-
-
-def do_many_random_runs():
-    for p, f in generate_random_bw_hyperparameters():
-        try:
-            start_time = time.time()
-            bw = run_bubblewrap(default_file, p)
-            end_time = time.time()
-            br = BubblewrapRun(bw, file=f, bw_parameters=p, time_to_run=end_time-start_time)
-            br.save()
-        except Exception as e:
-            if isinstance(e, KeyboardInterrupt):
-                raise e
 
 
 if __name__ == "__main__":
-    movie()
+    parameters = dict(
+        num=8,
+        lam=1e-3,
+        nu=1e-3,
+        eps=1e-4,
+        step=8e-2,
+        M=100,
+        B_thresh=-5,
+        batch=False,
+        batch_size=1,
+        go_fast=False,
+        lookahead_steps=[1,2,3,4,5,6,7,8,9,10],
+        seed=42,
+    )
+
+    # file = "./generated/clock-04-18-18-12.npz"
+    # file = "./generated/clock_switching_01.npz"
+    # file = "./generated/clock_variable_01.npz"
+    # file = "./generated/clock_wandering_01.npz"
+    # file = "./generated/clock_steady_separated.npz"
+    # file = "./generated/clock-steadier_farther.npz"
+    # file = "./generated/clock-slow_steadier_farther.npz"
+    # file = "./generated/clock-halfspeed_farther.npz"
+    file = "./generated/clock-shuffled.npz"
+    # file = "./generated/jpca_reduced.npy"
+    # file = "./generated/neuropixel_reduced.npz"
+
+    bw, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=True)
+    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br.save()
+
+    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=100, do_it_old_way=False)
+    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br.save()
+
+    if moviewriter is not None:
+        old_fname = moviewriter.outfile.split(".")
+        new_fname = br.outfile.split(".")
+
+        new_fname[-1] = old_fname[-1]
+        os.rename(moviewriter.outfile, ".".join(new_fname))
+
+    plot_bubblewrap_results(bw)

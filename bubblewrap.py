@@ -167,16 +167,16 @@ class Bubblewrap():
             self.sigma_orig = self.obs.cov * (self.nu + self.d + 1) / (self.N**(2/self.d))   
          
 
-    def e_step(self, future_observations=None):
+    def e_step(self, future_observations=None, do_it_old_way=False):
         # take E step; after observation
         if self.batch:
             for index, o in enumerate(self.obs.saved_obs):
-                self.single_e_step(o, future_observations=future_observations[index])
+                self.single_e_step(o, future_observations=future_observations[index], do_it_old_way=do_it_old_way)
         else:
-            self.single_e_step(self.obs.curr, future_observations=future_observations)
+            self.single_e_step(self.obs.curr, future_observations=future_observations, do_it_old_way=do_it_old_way)
 
 
-    def single_e_step(self, x, future_observations=None):
+    def single_e_step(self, x, future_observations=None, do_it_old_way=False):
 
         self.beta = 1 + 10/(self.t+1)
 
@@ -187,9 +187,16 @@ class Bubblewrap():
 
             new_pred = []
             new_ent = []
-            for idx, step in enumerate(self.lookahead_steps):
-                new_pred.append(self.pred_ahead(self.logB_jax(future_observations[idx], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
-                new_ent.append(self.get_entropy(self.A, self.alpha, step))
+
+            if do_it_old_way:
+                for idx, step in enumerate(self.lookahead_steps):
+                    new_pred.append(self.pred_ahead(self.logB_jax(x, self.mu, self.L, self.L_diag), self.A, self.alpha, step))
+                    new_ent.append(self.get_entropy(self.A, self.alpha, step))
+            else:
+                for idx, step in enumerate(self.lookahead_steps):
+                    # todo: special case for `step == 1`
+                    new_pred.append(self.pred_ahead(self.logB_jax(future_observations[idx], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
+                    new_ent.append(self.get_entropy(self.A, self.alpha, step))
 
             self.pred_list.append(new_pred)
             self.entropy_list.append(new_ent)

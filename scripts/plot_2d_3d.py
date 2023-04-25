@@ -19,7 +19,7 @@ def br_plot_2d(br):
 def plot_2d(ax, data, A, mu, L, n_obs, bw):
     # todo: remove bw
     ax.cla()
-    ax.plot(data[:,0], data[:,1], '.', color='gray', alpha=0.8)
+    ax.scatter(data[:,0], data[:,1], s=5, color='gray', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
     for n in np.arange(A.shape[0]):
         if n not in bw.dead_nodes:
             el = np.linalg.inv(L[n])
