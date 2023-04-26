@@ -31,7 +31,7 @@ from tqdm import tqdm
 # go_fast = False     # flag to skip computing priors, predictions, and entropy for optimal speed
 
 default_parameters = dict(
-    num=1000,
+    num=200,
     lam=1e-3,
     nu=1e-3,
     eps=1e-3,
@@ -41,9 +41,10 @@ default_parameters = dict(
     batch=False,
     batch_size=1,
     go_fast=False,
-    lookahead_steps=[],
+    lookahead_steps=[1, 2, 4 ,8, 16, 32, 64, 128, 256, 512, 1024],
     seed=42,
 )
+
 
 def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None):
     """this runs bubblewrap; it also generates a movie if `keep_every_nth_frame` is not None"""
@@ -58,11 +59,11 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
     s = np.load(file)
 
     # todo: give all files uniform format
-    if "jpca" in file:
-        data = s.T
-    elif "neuropixel" in file:
+    if "neuropixel" in file:
         data = s['ssSVD10'].T
         # data = s['ssSVD20'].T
+    elif ("jpca" in file) or ("mouse" in file) or ("widefield" in file):
+        data = s.T
     else:
         data = s['y'][0]
 
@@ -74,7 +75,8 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
 
     init = -params["M"]
     if end is None:
-        end = T-(params["M"] + max(bw.lookahead_steps))
+        # end = T-(params["M"] + max(bw.lookahead_steps))
+        end = T - params["M"]
     step = params["batch_size"]
 
     # Initialize things
@@ -87,8 +89,15 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
 
     # Run online, 1 data or batch at a time
     for i in tqdm(np.arange(init, end, step)):
-        bw.observe(data[i+params["M"]:i+params["M"]+step])
-        future_observations = [data[i+params["M"]+step + x - 2:i+params["M"]+step + x - 1] for x in bw.lookahead_steps]
+        start_of_block = i+params["M"]
+        end_of_block = i+params["M"]+step
+        bw.observe(data[start_of_block:end_of_block])
+
+        future_observations = {}
+        for x in bw.lookahead_steps:
+            if (end_of_block - 1) + (x - 1) < T:
+                future_observations[x] = data[(end_of_block - 1) + (x - 1)]
+
         bw.e_step(future_observations, do_it_old_way=do_it_old_way)
         bw.grad_Q()
 
@@ -169,7 +178,7 @@ if __name__ == "__main__":
         batch=False,
         batch_size=1,
         go_fast=False,
-        lookahead_steps=[1,2,3,4,5,6,7,8,9,10],
+        lookahead_steps=[1,2,4,8,16,32,64,128,256,512,1024],
         seed=42,
     )
 
@@ -178,18 +187,20 @@ if __name__ == "__main__":
     # file = "./generated/clock_variable_01.npz"
     # file = "./generated/clock_wandering_01.npz"
     # file = "./generated/clock_steady_separated.npz"
-    # file = "./generated/clock-steadier_farther.npz"
+    file = "./generated/clock-steadier_farther.npz"
     # file = "./generated/clock-slow_steadier_farther.npz"
     # file = "./generated/clock-halfspeed_farther.npz"
-    file = "./generated/clock-shuffled.npz"
+    # file = "./generated/clock-shuffled.npz"
     # file = "./generated/jpca_reduced.npy"
     # file = "./generated/neuropixel_reduced.npz"
+    # file = "./generated/reduced_mouse.npy"
+    # file = "./generated/widefield_reduced.npy"
 
     bw, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=True)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
 
-    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=100, do_it_old_way=False)
+    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=False)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
 

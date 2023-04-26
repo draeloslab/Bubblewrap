@@ -17,6 +17,9 @@ class BubblewrapRun:
         self.n_obs = np.array(bw.n_obs)
         self.pred_list = np.array(bw.pred_list)
         self.entropy_list = np.array(bw.entropy_list)
+        if hasattr(bw, "alpha_list"):
+            # todo: check if I need this guard
+            self.alpha_list = np.array(bw.alpha_list)
         self.dead_nodes = np.array(bw.dead_nodes)
 
     def save(self, dir="generated/bubblewrap_runs"):

@@ -144,6 +144,7 @@ class Bubblewrap():
         self.time_pred = []
         self.entropy_list = []
         self.pred_list = []
+        self.alpha_list = []
         self.loss = []
 
         self.t = 1
@@ -194,12 +195,17 @@ class Bubblewrap():
                     new_ent.append(self.get_entropy(self.A, self.alpha, step))
             else:
                 for idx, step in enumerate(self.lookahead_steps):
-                    # todo: special case for `step == 1`
-                    new_pred.append(self.pred_ahead(self.logB_jax(future_observations[idx], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
+                    if step in future_observations:
+                        # todo: special case for `step == 1`
+                        new_pred.append(self.pred_ahead(self.logB_jax(future_observations[step], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
+                    else:
+                        new_pred.append(np.nan)
+
                     new_ent.append(self.get_entropy(self.A, self.alpha, step))
 
             self.pred_list.append(new_pred)
             self.entropy_list.append(new_ent)
+            self.alpha_list.append(np.array(self.alpha))
 
         self.update_B(x)
 

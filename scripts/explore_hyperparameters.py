@@ -1,3 +1,8 @@
+import numpy as np
+import time
+from bubblewrap_run import BubblewrapRun
+from run_bubblewrap import default_parameters
+
 def generate_random_bw_hyperparameters(variable_parameters=None):
     rng = np.random.default_rng()
 
@@ -14,7 +19,7 @@ def generate_random_bw_hyperparameters(variable_parameters=None):
         d = dict(default_parameters)
         for key, value in variable_parameters.items():
             d[key] = rng.choice(value)
-        f = rng.choice(generated_files)
+        f = ...
         yield d, f
 
 
