@@ -125,6 +125,16 @@ def plot(fname):
     else:
         raise Exception("Cannot detect trajectory type from saved file.")
 
+def plot_A_differences(A, end=100):
+    fig, ax = plt.subplots()
+    last_A = A
+    differences = []
+    for _ in range(2,end):
+        new_A = last_A @ A
+        differences.append(np.linalg.norm(last_A - new_A))
+        last_A = new_A
+    plt.plot(differences)
+
 
 if __name__ == '__main__':
     import glob

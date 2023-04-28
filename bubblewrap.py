@@ -10,12 +10,13 @@ from scipy.stats import multivariate_normal as mvn
 from jax.scipy.special import logsumexp as lse
 from jax import nn, random
 from functools import partial
+import warnings
 
 
 epsilon = 1e-10
 
 class Bubblewrap():
-    def __init__(self, dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False):
+    def __init__(self, dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False, save_A=False):
         self.N = num            # Number of nodes
         self.d = dim            # dimension of the space
         self.seed = seed
@@ -40,6 +41,7 @@ class Bubblewrap():
             self.lookahead_steps = lookahead_steps
 
         self.go_fast = go_fast
+        self.save_A = save_A
 
         self.key = random.PRNGKey(self.seed)
         numpy.random.seed(self.seed)
@@ -145,6 +147,7 @@ class Bubblewrap():
         self.entropy_list = []
         self.pred_list = []
         self.alpha_list = []
+        self.A_list = []
         self.loss = []
 
         self.t = 1
@@ -206,6 +209,9 @@ class Bubblewrap():
             self.pred_list.append(new_pred)
             self.entropy_list.append(new_ent)
             self.alpha_list.append(np.array(self.alpha))
+            if self.save_A:
+                warnings.warn("This is saving A for all timesteps; if A is big, this can take a lot of space.")
+                self.A_list.append(np.array(self.A))
 
         self.update_B(x)
 

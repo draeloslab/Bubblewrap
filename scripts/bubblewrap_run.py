@@ -20,6 +20,9 @@ class BubblewrapRun:
         if hasattr(bw, "alpha_list"):
             # todo: check if I need this guard
             self.alpha_list = np.array(bw.alpha_list)
+
+        if hasattr(bw, "A_list"):
+            self.A_list = np.array(bw.A_list)
         self.dead_nodes = np.array(bw.dead_nodes)
 
     def save(self, dir="generated/bubblewrap_runs"):

@@ -5,16 +5,17 @@ import time
 import numpy as np
 
 import matplotlib
-matplotlib.use('QtAgg')
 import matplotlib.pylab as plt
 from matplotlib.animation import FFMpegFileWriter
 
 from bubblewrap import Bubblewrap
-from plot_2d_3d import plot_2d
+from plot_2d_3d import plot_2d, plot_A_differences
 from bubblewrap_run import BubblewrapRun
 
 from math import atan2, floor
 from tqdm import tqdm
+
+matplotlib.use('QtAgg')
 
 # todo: unify movie and non-movie functions
 
@@ -30,7 +31,7 @@ from tqdm import tqdm
 # batch_size = 1      # batch mode size; if not batch is 1
 # go_fast = False     # flag to skip computing priors, predictions, and entropy for optimal speed
 
-default_parameters = dict(
+default_rwd_parameters = dict(
     num=200,
     lam=1e-3,
     nu=1e-3,
@@ -41,8 +42,25 @@ default_parameters = dict(
     batch=False,
     batch_size=1,
     go_fast=False,
-    lookahead_steps=[1, 2, 4 ,8, 16, 32, 64, 128, 256, 512, 1024],
+    lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 32, 35, 40, 50, 64, 80, 100, 128, 256, 512],
     seed=42,
+    save_A=False,
+)
+
+default_clock_parameters = dict(
+    num=8,
+    lam=1e-3,
+    nu=1e-3,
+    eps=1e-4,
+    step=8e-2,
+    M=100,
+    B_thresh=-5,
+    batch=False,
+    batch_size=1,
+    go_fast=False,
+    lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 32, 35, 40, 50, 64, 80, 100, 128, 256, 512],
+    seed=42,
+    save_A=False,
 )
 
 
@@ -160,49 +178,9 @@ def plot_bubblewrap_results(bw, running_average_length=500):
     plt.show()
 
 def run_defaults(file):
-    bw,_ = run_bubblewrap(file, default_parameters)
+    bw, moviewriter = run_bubblewrap(file, default_rwd_parameters)
     plot_bubblewrap_results(bw)
-    br,_ = BubblewrapRun(bw, file=file, bw_parameters=default_parameters)
-    br.save()
-
-
-if __name__ == "__main__":
-    parameters = dict(
-        num=8,
-        lam=1e-3,
-        nu=1e-3,
-        eps=1e-4,
-        step=8e-2,
-        M=100,
-        B_thresh=-5,
-        batch=False,
-        batch_size=1,
-        go_fast=False,
-        lookahead_steps=[1,2,4,8,16,32,64,128,256,512,1024],
-        seed=42,
-    )
-
-    # file = "./generated/clock-04-18-18-12.npz"
-    # file = "./generated/clock_switching_01.npz"
-    # file = "./generated/clock_variable_01.npz"
-    # file = "./generated/clock_wandering_01.npz"
-    # file = "./generated/clock_steady_separated.npz"
-    file = "./generated/clock-steadier_farther.npz"
-    # file = "./generated/clock-slow_steadier_farther.npz"
-    # file = "./generated/clock-halfspeed_farther.npz"
-    # file = "./generated/clock-shuffled.npz"
-    # file = "./generated/jpca_reduced.npy"
-    # file = "./generated/neuropixel_reduced.npz"
-    # file = "./generated/reduced_mouse.npy"
-    # file = "./generated/widefield_reduced.npy"
-
-    bw, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=True)
-    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
-    br.save()
-
-    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=False)
-    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
-    br.save()
+    br = BubblewrapRun(bw, file=file, bw_parameters=default_rwd_parameters)
 
     if moviewriter is not None:
         old_fname = moviewriter.outfile.split(".")
@@ -211,4 +189,53 @@ if __name__ == "__main__":
         new_fname[-1] = old_fname[-1]
         os.rename(moviewriter.outfile, ".".join(new_fname))
 
-    plot_bubblewrap_results(bw)
+    br.save()
+
+def compare_old_and_new_ways(file, parameters, end=None):
+    bw, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=True, end=end)
+    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br.save()
+    old_file = br.outfile
+    del br
+
+    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
+    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br.save()
+    new_file = br.outfile
+    del br
+
+    print(f"old_way_file = '{old_file}'")
+    print(f"new_way_file = '{new_file}'")
+    print(f"dataset = '{file}'")
+
+
+if __name__ == "__main__":
+
+    # file = "./generated/clock-04-18-18-12.npz"
+    # file = "./generated/clock_switching_01.npz"
+    # file = "./generated/clock_variable_01.npz"
+    # file = "./generated/clock_wandering_01.npz"
+    # file = "./generated/clock_steady_separated.npz"
+    # file = "./generated/clock-steadier_farther.npz"
+    # file = "./generated/clock-slow_steadier_farther.npz"
+    # file = "./generated/clock-halfspeed_farther.npz"
+    # file = "./generated/clock-shuffled.npz"
+    # file = "./generated/jpca_reduced.npy"
+    # file = "./generated/neuropixel_reduced.npz"
+    # file = "./generated/reduced_mouse.npy"
+    # file = "./generated/widefield_reduced.npy"
+
+    # compare_old_and_new_ways("./generated/clock-steadier_farther.npz", dict(default_clock_parameters, save_A=True))
+    # compare_old_and_new_ways("./generated/clock-slow_steadier_farther.npz", dict(default_clock_parameters, save_A=True))
+    # compare_old_and_new_ways("./generated/clock-halfspeed_farther.npz", dict(default_clock_parameters, save_A=True))
+    # compare_old_and_new_ways("./generated/clock-shuffled.npz", dict(default_clock_parameters, save_A=True))
+
+    # compare_old_and_new_ways("./generated/jpca_reduced.npy", dict(default_rwd_parameters, save_A=True))
+    # compare_old_and_new_ways("./generated/neuropixel_reduced.npz", dict(default_rwd_parameters, save_A=True), end=10_00)
+    # compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters, save_A=True), end=10_000)
+    # compare_old_and_new_ways("./generated/widefield_reduced.npy", dict(default_rwd_parameters, save_A=True), end=10_000)
+
+
+    compare_old_and_new_ways("./generated/neuropixel_reduced.npz", dict(default_rwd_parameters))
+    compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
+    compare_old_and_new_ways("./generated/widefield_reduced.npy", dict(default_rwd_parameters))
