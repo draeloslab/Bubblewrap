@@ -76,13 +76,9 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
 
     s = np.load(file)
 
-    # todo: give all files uniform format
-    if "neuropixel" in file:
-        data = s['ssSVD10'].T
-        # data = s['ssSVD20'].T
-    elif ("jpca" in file) or ("mouse" in file) or ("widefield" in file):
+    if "npy" in file:
         data = s.T
-    else:
+    elif "npz" in file:
         data = s['y'][0]
 
     T = data.shape[0]       # should be big (like 20k)
@@ -204,38 +200,34 @@ def compare_old_and_new_ways(file, parameters, end=None):
     new_file = br.outfile
     del br
 
-    print(f"old_way_file = '{old_file}'")
-    print(f"new_way_file = '{new_file}'")
-    print(f"dataset = '{file}'")
+    print(f"old_way_file = '{old_file.split('/')[-1]}'")
+    print(f"new_way_file = '{new_file.split('/')[-1]}'")
+    print(f"dataset = '{file.split('/')[-1]}'")
 
+def run_and_save(file, parameters, end=None):
+    bw, moviewriter = run_bubblewrap(file,parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
+    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br.save()
+    new_file = br.outfile
+    del br
+    print(f"shuffled_new_way_file = '{new_file.split('/')[-1]}'")
 
-if __name__ == "__main__":
+def compare_new_and_old_way_main():
+    compare_old_and_new_ways("./generated/clock-steadier_farther.npz", dict(default_clock_parameters, save_A=True))
+    compare_old_and_new_ways("./generated/clock-slow_steadier_farther.npz", dict(default_clock_parameters, save_A=True))
+    compare_old_and_new_ways("./generated/clock-halfspeed_farther.npz", dict(default_clock_parameters, save_A=True))
+    compare_old_and_new_ways("./generated/clock-shuffled.npz", dict(default_clock_parameters, save_A=True))
 
-    # file = "./generated/clock-04-18-18-12.npz"
-    # file = "./generated/clock_switching_01.npz"
-    # file = "./generated/clock_variable_01.npz"
-    # file = "./generated/clock_wandering_01.npz"
-    # file = "./generated/clock_steady_separated.npz"
-    # file = "./generated/clock-steadier_farther.npz"
-    # file = "./generated/clock-slow_steadier_farther.npz"
-    # file = "./generated/clock-halfspeed_farther.npz"
-    # file = "./generated/clock-shuffled.npz"
-    # file = "./generated/jpca_reduced.npy"
-    # file = "./generated/neuropixel_reduced.npz"
-    # file = "./generated/reduced_mouse.npy"
-    # file = "./generated/widefield_reduced.npy"
-
-    # compare_old_and_new_ways("./generated/clock-steadier_farther.npz", dict(default_clock_parameters, save_A=True))
-    # compare_old_and_new_ways("./generated/clock-slow_steadier_farther.npz", dict(default_clock_parameters, save_A=True))
-    # compare_old_and_new_ways("./generated/clock-halfspeed_farther.npz", dict(default_clock_parameters, save_A=True))
-    # compare_old_and_new_ways("./generated/clock-shuffled.npz", dict(default_clock_parameters, save_A=True))
-
-    # compare_old_and_new_ways("./generated/jpca_reduced.npy", dict(default_rwd_parameters, save_A=True))
-    # compare_old_and_new_ways("./generated/neuropixel_reduced.npz", dict(default_rwd_parameters, save_A=True), end=10_00)
-    # compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters, save_A=True), end=10_000)
-    # compare_old_and_new_ways("./generated/widefield_reduced.npy", dict(default_rwd_parameters, save_A=True), end=10_000)
+    compare_old_and_new_ways("./generated/jpca_reduced.npy", dict(default_rwd_parameters, save_A=True))
+    compare_old_and_new_ways("./generated/neuropixel_reduced.npz", dict(default_rwd_parameters, save_A=True), end=10_00)
+    compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters, save_A=True), end=10_000)
+    compare_old_and_new_ways("./generated/widefield_reduced.npy", dict(default_rwd_parameters, save_A=True), end=10_000)
 
 
     compare_old_and_new_ways("./generated/neuropixel_reduced.npz", dict(default_rwd_parameters))
-    compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
     compare_old_and_new_ways("./generated/widefield_reduced.npy", dict(default_rwd_parameters))
+
+    compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
+
+if __name__ == "__main__":
+    compare_old_and_new_ways("./generated/datasets/mouse_reduced.npy", dict(default_rwd_parameters, M=60, num=1000, step=8e-1, n_thresh=5e-4), end=10_000)
