@@ -17,7 +17,6 @@ from tqdm import tqdm
 
 matplotlib.use('QtAgg')
 
-# todo: unify movie and non-movie functions
 
 # ## Parameters
 # N = 1000             # number of nodes to tile with
@@ -42,7 +41,7 @@ default_rwd_parameters = dict(
     batch=False,
     batch_size=1,
     go_fast=False,
-    lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 32, 35, 40, 50, 64, 80, 100, 128, 256, 512],
+    lookahead_steps=[1, 2, 3, 4, 5, 8, 10, 16, 32, 64, 128],
     seed=42,
     save_A=False,
 )
@@ -173,21 +172,9 @@ def plot_bubblewrap_results(bw, running_average_length=500):
         ax[1].set_title(f"Entropy ({steps} steps)")
     plt.show()
 
-def run_defaults(file):
-    bw, moviewriter = run_bubblewrap(file, default_rwd_parameters)
-    plot_bubblewrap_results(bw)
-    br = BubblewrapRun(bw, file=file, bw_parameters=default_rwd_parameters)
 
-    if moviewriter is not None:
-        old_fname = moviewriter.outfile.split(".")
-        new_fname = br.outfile.split(".")
 
-        new_fname[-1] = old_fname[-1]
-        os.rename(moviewriter.outfile, ".".join(new_fname))
-
-    br.save()
-
-def compare_old_and_new_ways(file, parameters, end=None):
+def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
     bw, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=True, end=end)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
@@ -200,17 +187,36 @@ def compare_old_and_new_ways(file, parameters, end=None):
     new_file = br.outfile
     del br
 
+    if shuffle is not False:
+        shuffle_file = file.split("/")
+        shuffle_file[-1] ="shuffled_" + shuffle_file[-1]
+        shuffle_file = "/".join(shuffle_file)
+        bw, moviewriter = run_bubblewrap(shuffle_file, parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
+        br = BubblewrapRun(bw, file=shuffle_file, bw_parameters=parameters)
+        br.save()
+        s_file = br.outfile
+        del br
+
+        print(f"shuffled_new_way_file = '{s_file.split('/')[-1]}'")
+
     print(f"old_way_file = '{old_file.split('/')[-1]}'")
     print(f"new_way_file = '{new_file.split('/')[-1]}'")
     print(f"dataset = '{file.split('/')[-1]}'")
 
-def run_and_save(file, parameters, end=None):
-    bw, moviewriter = run_bubblewrap(file,parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
+def simple_run(file, parameters, nth_frame=10):
+    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=nth_frame)
+    # plot_bubblewrap_results(bw)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
-    new_file = br.outfile
-    del br
-    print(f"shuffled_new_way_file = '{new_file.split('/')[-1]}'")
+
+    if moviewriter is not None:
+        old_fname = moviewriter.outfile.split(".")
+        new_fname = br.outfile.split(".")
+
+        new_fname[-1] = old_fname[-1]
+        os.rename(moviewriter.outfile, ".".join(new_fname))
+    print(br.outfile.split("/")[-1])
+
 
 def compare_new_and_old_way_main():
     compare_old_and_new_ways("./generated/clock-steadier_farther.npz", dict(default_clock_parameters, save_A=True))
@@ -230,4 +236,30 @@ def compare_new_and_old_way_main():
     compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
 
 if __name__ == "__main__":
-    compare_old_and_new_ways("./generated/datasets/mouse_reduced.npy", dict(default_rwd_parameters, M=60, num=1000, step=8e-1, n_thresh=5e-4), end=10_000)
+    file = "./generated/datasets/jpca_reduced.npy"
+    # `num` is set by the entropy plot
+    # `step` \in [10e-3, and 10e-1]
+    # `eps` \in {0, 1e-3}
+    # simple_run(file, parameters=dict(default_rwd_parameters, num=100, M=21*2, eps=1e-3*1, step=.2), nth_frame=None)
+
+    for step in [.001, .01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, .8,]:
+    # for step in [.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 2, 3, 4, ]:
+        simple_run(file, parameters=dict(default_rwd_parameters, num=100, M=21*2, eps=0,    step=step, B_thresh=-15, nu=1e-3, lam=1e-3,), nth_frame=None)
+        simple_run(file, parameters=dict(default_rwd_parameters, num=100, M=21*2, eps=1e-3, step=step, B_thresh=-15, nu=1e-3, lam=1e-3,), nth_frame=None)
+
+# eps 1e-3
+# step 9e-2, 9e-3
+
+# lam = 1e-3          # lambda
+# nu = 1e-3           # nu
+# eps = 1e-3          # epsilon sets data forgetting
+# step = 8e-2         # for adam gradients
+# B_thresh = -10      # threshold for when to teleport (log scale)
+
+# n = 1000             # number of nodes to tile with
+# lam = 1e-3          # lambda
+# nu = 1e-3           # nu
+# eps = 1e-3          # epsilon sets data forgetting
+# step = 8e-2         # for adam gradients
+# m = 30              # small set of data seen for initialization
+# b_thresh = -10      # threshold for when to teleport (log scale)
