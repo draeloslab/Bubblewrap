@@ -203,6 +203,7 @@ def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
     print(f"new_way_file = '{new_file.split('/')[-1]}'")
     print(f"dataset = '{file.split('/')[-1]}'")
 
+
 def simple_run(file, parameters, nth_frame=10):
     bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=nth_frame)
     # plot_bubblewrap_results(bw)
@@ -237,29 +238,3 @@ def compare_new_and_old_way_main():
 
 if __name__ == "__main__":
     file = "./generated/datasets/jpca_reduced.npy"
-    # `num` is set by the entropy plot
-    # `step` \in [10e-3, and 10e-1]
-    # `eps` \in {0, 1e-3}
-    # simple_run(file, parameters=dict(default_rwd_parameters, num=100, M=21*2, eps=1e-3*1, step=.2), nth_frame=None)
-
-    for step in [.001, .01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, .8,]:
-    # for step in [.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5, 2, 3, 4, ]:
-        simple_run(file, parameters=dict(default_rwd_parameters, num=100, M=21*2, eps=0,    step=step, B_thresh=-15, nu=1e-3, lam=1e-3,), nth_frame=None)
-        simple_run(file, parameters=dict(default_rwd_parameters, num=100, M=21*2, eps=1e-3, step=step, B_thresh=-15, nu=1e-3, lam=1e-3,), nth_frame=None)
-
-# eps 1e-3
-# step 9e-2, 9e-3
-
-# lam = 1e-3          # lambda
-# nu = 1e-3           # nu
-# eps = 1e-3          # epsilon sets data forgetting
-# step = 8e-2         # for adam gradients
-# B_thresh = -10      # threshold for when to teleport (log scale)
-
-# n = 1000             # number of nodes to tile with
-# lam = 1e-3          # lambda
-# nu = 1e-3           # nu
-# eps = 1e-3          # epsilon sets data forgetting
-# step = 8e-2         # for adam gradients
-# m = 30              # small set of data seen for initialization
-# b_thresh = -10      # threshold for when to teleport (log scale)
