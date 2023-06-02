@@ -25,8 +25,8 @@ class BubblewrapRun:
             self.A_list = np.array(bw.A_list)
         self.dead_nodes = np.array(bw.dead_nodes)
 
-    def save(self, dir="generated/bubblewrap_runs"):
+    def save(self, directory="generated/bubblewrap_runs"):
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-        self.outfile = os.path.join(dir, f"bubblewrap_run_{time_string}.pickle")
+        self.outfile = os.path.join(directory, f"bubblewrap_run_{time_string}.pickle")
         with open(self.outfile, "wb") as fhan:
             pickle.dump(self, fhan)

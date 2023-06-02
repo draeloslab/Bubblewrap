@@ -57,18 +57,107 @@ default_clock_parameters = dict(
     batch=False,
     batch_size=1,
     go_fast=False,
-    lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 32, 35, 40, 50, 64, 80, 100, 128, 256, 512],
+    lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 30, 50],
     seed=42,
     save_A=False,
 )
 
+def show_bubbles(ax, data, bw, params, step, i, keep_every_nth_frame):
+    ax.cla()
+
+    d = data[0:i+params["M"]+step]
+    plot_2d(ax, d, bw.A, bw.mu, bw.L, np.array(bw.n_obs), bw)
+
+    d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
+    ax.plot(d[:,0], d[:,1], 'k.')
+    ax.set_title("Observation Model")
+
+def show_A(ax, bw):
+    ax.cla()
+    ims = ax.imshow(bw.A, aspect='equal', interpolation='nearest')
+
+    ax.set_title("Transition Matrix")
+    ax.set_xlabel("To")
+    ax.set_ylabel("From")
+
+    ax.set_xticks(np.arange(bw.N))
+    live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
+    ax.set_yticks(live_nodes)
+
+def show_alpha(ax, bw):
+    ax.cla()
+    ims = ax.imshow(np.array(bw.alpha_list[-19:] + [bw.alpha]).T, aspect='auto', interpolation='nearest')
+
+    ax.set_title("State Estimate")
+    live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
+    ax.set_yticks(live_nodes)
+
+def show_A_eigenspectrum(ax, bw):
+    ax.cla()
+    eig = np.sort(np.linalg.eigvals(bw.A))[::-1]
+    ax.plot(eig, '.')
+    ax.set_title("Eigenspectrum of A")
+
+# TODO: remove this?
+def mean_distance(data, shift=1):
+    x = data - data.mean(axis=0)
+    T = x.shape[0]
+
+    differences = x[0:T - shift] - x[shift:T]
+    distances = np.linalg.norm(differences, axis=1)
+
+    return distances.mean()
+
+def show_data_distance(ax, data, i, params, step, max_step=50):
+    old_ylim = ax.get_ylim()
+    ax.cla()
+    d = data[max(i+params["M"]+step-3*max_step, 0):i+params["M"]+step]
+    if d.shape[0] > 10:
+        shifts = np.arange(0,min(d.shape[0]//2, max_step))
+        distances = [mean_distance(d, shift) for shift in shifts]
+        ax.plot(shifts, distances)
+    ax.set_xlim([0,max_step])
+    new_ylim = ax.get_ylim()
+    ax.set_ylim([0, max(old_ylim[1], new_ylim[1])])
+
+def show_nstep_pred_pdf(ax, bw, data, current_index, other_axis, fig, n=0):
+    # vmin = np.inf
+    # vmax = -np.inf
+    if ax.collections:
+        vmax = ax.collections[-3].colorbar.vmax
+        vmin = ax.collections[-3].colorbar.vmin
+        ax.collections[-3].colorbar.remove()
+    ax.cla()
+    other_axis: plt.Axes
+
+    xlim = other_axis.get_xlim()
+    ylim = other_axis.get_ylim()
+    density = 50
+    x_bins = np.linspace(*xlim, density+1)
+    y_bins = np.linspace(*ylim, density+1)
+    pdf = np.zeros(shape=(density, density))
+    for i in range(density):
+        for j in range(density):
+            x = np.array([x_bins[i] + x_bins[i+1], y_bins[j] + y_bins[j+1]])/2
+            b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
+            pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A,n) @ np.exp(b_values)
+    # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=min(vmin, pdf.min()), vmax=max(vmax, pdf.max()))
+    cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=0, vmax=0.03) #log, vmin=-15, vmax=-5
+    fig.colorbar(cmesh)
+    if current_index+n < data.shape[0]:
+            to_draw = data[current_index+n]
+            ax.scatter(to_draw[0], to_draw[1], c='red', alpha=.25)
+
+    to_draw = data[current_index]
+    ax.scatter(to_draw[0], to_draw[1], c='red')
+    ax.set_title(f"{n}-step pred. at t={current_index}")
 
 def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None):
     """this runs bubblewrap; it also generates a movie if `keep_every_nth_frame` is not None"""
     if keep_every_nth_frame is not None:
-        fig, ax = plt.subplots(1, 2, figsize=(10,5), squeeze=True)
+        fig, ax = plt.subplots(2, 2, figsize=(10,10), squeeze=True)
 
-        moviewriter = FFMpegFileWriter(fps=20)
+        moviewriter = FFMpegFileWriter(fps=5)
         moviewriter.setup(fig, "generated/movie.mp4", dpi=100)
     else:
         moviewriter = None
@@ -117,27 +206,13 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
         if keep_every_nth_frame is not None:
             assert step == 1 # the keep_every_th assumes the step is 1
             if i % keep_every_nth_frame == 0:
-                ax[0].cla()
+                show_bubbles(ax[0,0], data, bw, params, step, i, keep_every_nth_frame)
 
+                current_index = end_of_block-1
+                show_nstep_pred_pdf(ax[0,1], bw, data, current_index, ax[0,0], fig, n=1)
+                show_A(ax[1,0], bw)
+                show_alpha(ax[1,1], bw)
 
-                d = data[0:i+params["M"]+step]
-                plot_2d(ax[0], d, bw.A, bw.mu, bw.L, np.array(bw.n_obs), bw)
-
-                d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
-                ax[0].plot(d[:,0], d[:,1], 'k.')
-
-                ax[1].cla()
-                ims = ax[1].imshow(bw.A, aspect='equal', interpolation='nearest')
-                # fig.colorbar(ims)
-
-                ax[0].set_title("Observation Model")
-                ax[1].set_title("Transition Matrix")
-                ax[1].set_xlabel("To")
-                ax[1].set_ylabel("From")
-
-                ax[1].set_xticks(np.arange(bw.N))
-                live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
-                ax[1].set_yticks(live_nodes)
 
                 moviewriter.grab_frame()
     if keep_every_nth_frame is not None:
@@ -204,8 +279,8 @@ def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
     print(f"dataset = '{file.split('/')[-1]}'")
 
 
-def simple_run(file, parameters, nth_frame=10):
-    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=nth_frame)
+def simple_run(file, parameters, nth_frame=10, end=None):
+    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=nth_frame, end=end)
     # plot_bubblewrap_results(bw)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
@@ -237,4 +312,10 @@ def compare_new_and_old_way_main():
     compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
 
 if __name__ == "__main__":
-    file = "./generated/datasets/jpca_reduced.npy"
+    file = "./generated/datasets/clock_wandering_01.npz"
+    file = "./generated/datasets/clock-shuffled.npz"
+    file = "./generated/datasets/clock-04-18-18-12.npz"
+    file = "./generated/datasets/clock-halfspeed_farther.npz"
+    file = "./generated/datasets/clock-steadier_farther.npz"
+
+    simple_run(file, default_clock_parameters, nth_frame=1, end=500)
