@@ -455,7 +455,7 @@ class Observations:
 def update_mean(mean, curr, n_obs):
     return mean + (curr - mean)/n_obs
 
-@jit
+# @jit # TODO: profile this, and maybe bring it back
 def update_cov(cov, last, curr, mean, n):
     lastm = get_mus(last)
     currm = get_mus(mean)

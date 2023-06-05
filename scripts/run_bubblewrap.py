@@ -97,6 +97,7 @@ def show_A_eigenspectrum(ax, bw):
     eig = np.sort(np.linalg.eigvals(bw.A))[::-1]
     ax.plot(eig, '.')
     ax.set_title("Eigenspectrum of A")
+    ax.set_ylim([0,1])
 
 # TODO: remove this?
 def mean_distance(data, shift=1):
@@ -108,10 +109,11 @@ def mean_distance(data, shift=1):
 
     return distances.mean()
 
-def show_data_distance(ax, data, i, params, step, max_step=50):
+def show_data_distance(ax, data, end_of_block, max_step=50):
     old_ylim = ax.get_ylim()
     ax.cla()
-    d = data[max(i+params["M"]+step-3*max_step, 0):i+params["M"]+step]
+    start = max(end_of_block-3*max_step, 0)
+    d = data[start:end_of_block]
     if d.shape[0] > 10:
         shifts = np.arange(0,min(d.shape[0]//2, max_step))
         distances = [mean_distance(d, shift) for shift in shifts]
@@ -119,6 +121,9 @@ def show_data_distance(ax, data, i, params, step, max_step=50):
     ax.set_xlim([0,max_step])
     new_ylim = ax.get_ylim()
     ax.set_ylim([0, max(old_ylim[1], new_ylim[1])])
+    ax.set_title(f"dataset[{start}:{end_of_block}] distances")
+    ax.set_xlabel("offset")
+    ax.set_ylabel("distance")
 
 def show_nstep_pred_pdf(ax, bw, data, current_index, other_axis, fig, n=0):
     # vmin = np.inf
@@ -142,7 +147,8 @@ def show_nstep_pred_pdf(ax, bw, data, current_index, other_axis, fig, n=0):
             b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
             pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A,n) @ np.exp(b_values)
     # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=min(vmin, pdf.min()), vmax=max(vmax, pdf.max()))
-    cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=0, vmax=0.03) #log, vmin=-15, vmax=-5
+    # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=0, vmax=0.03) #log, vmin=-15, vmax=-5
+    cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T) #log, vmin=-15, vmax=-5
     fig.colorbar(cmesh)
     if current_index+n < data.shape[0]:
             to_draw = data[current_index+n]
@@ -155,9 +161,10 @@ def show_nstep_pred_pdf(ax, bw, data, current_index, other_axis, fig, n=0):
 def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None):
     """this runs bubblewrap; it also generates a movie if `keep_every_nth_frame` is not None"""
     if keep_every_nth_frame is not None:
-        fig, ax = plt.subplots(2, 2, figsize=(10,10), squeeze=True)
+        # fig, ax = plt.subplots(2, 2, figsize=(10,10), layout='tight')
+        fig, ax = plt.subplots(1, 2, figsize=(10,7), layout='tight')
 
-        moviewriter = FFMpegFileWriter(fps=5)
+        moviewriter = FFMpegFileWriter(fps=20)
         moviewriter.setup(fig, "generated/movie.mp4", dpi=100)
     else:
         moviewriter = None
@@ -194,6 +201,7 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
         start_of_block = i+params["M"]
         end_of_block = i+params["M"]+step
         bw.observe(data[start_of_block:end_of_block])
+        last_seen = end_of_block - 1
 
         future_observations = {}
         for x in bw.lookahead_steps:
@@ -206,12 +214,13 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
         if keep_every_nth_frame is not None:
             assert step == 1 # the keep_every_th assumes the step is 1
             if i % keep_every_nth_frame == 0:
-                show_bubbles(ax[0,0], data, bw, params, step, i, keep_every_nth_frame)
+                # show_bubbles(ax[0,0], data, bw, params, step, i, keep_every_nth_frame)
+                # show_nstep_pred_pdf(ax[0,1], bw, data, last_seen, ax[0,0], fig, n=1)
+                # show_A(ax[1,0], bw)
+                # show_alpha(ax[1,1], bw)
 
-                current_index = end_of_block-1
-                show_nstep_pred_pdf(ax[0,1], bw, data, current_index, ax[0,0], fig, n=1)
-                show_A(ax[1,0], bw)
-                show_alpha(ax[1,1], bw)
+                show_data_distance(ax[0], data, end_of_block, max_step=300)
+                show_A_eigenspectrum(ax[1], bw)
 
 
                 moviewriter.grab_frame()
@@ -312,10 +321,8 @@ def compare_new_and_old_way_main():
     compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
 
 if __name__ == "__main__":
-    file = "./generated/datasets/clock_wandering_01.npz"
-    file = "./generated/datasets/clock-shuffled.npz"
-    file = "./generated/datasets/clock-04-18-18-12.npz"
-    file = "./generated/datasets/clock-halfspeed_farther.npz"
     file = "./generated/datasets/clock-steadier_farther.npz"
+    file = "./generated/datasets/mouse_reduced.npy"
 
-    simple_run(file, default_clock_parameters, nth_frame=1, end=500)
+    # simple_run(file, dict(default_rwd_parameters, num=50), nth_frame=None, end=53)
+    simple_run(file, dict(default_rwd_parameters), nth_frame=50, end=None)

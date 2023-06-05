@@ -33,6 +33,17 @@ def plot_2d(ax, data, A, mu, L, n_obs, bw):
             el.set_facecolor('#ed6713')
             ax.add_artist(el)
             ax.text(mu[n,0] + .3,mu[n,1] + .3,str(n))
+        else:
+            el = np.linalg.inv(L[n])
+            sig = el.T @ el
+            u,s,v = np.linalg.svd(sig)
+            width, height = np.sqrt(s[0])*3, np.sqrt(s[1])*3
+            angle = atan2(v[0,1],v[0,0])*360 / (2*np.pi)
+            el = Ellipse((mu[n,0], mu[n,1]), width, height, angle=angle, zorder=8)
+            el.set_alpha(0.05)
+            el.set_clip_box(ax.bbox)
+            el.set_facecolor('#000000')
+            ax.add_artist(el)
 
     mask = np.ones(mu.shape[0], dtype=bool)
     mask[n_obs < .1] = False
