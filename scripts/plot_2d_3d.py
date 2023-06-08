@@ -19,7 +19,7 @@ def br_plot_2d(br):
 def plot_2d(ax, data, A, mu, L, n_obs, bw):
     # todo: remove bw
     ax.cla()
-    ax.scatter(data[:,0], data[:,1], s=5, color='gray', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
+    ax.scatter(data[:,0], data[:,1], s=5, color='#004cff', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
     for n in np.arange(A.shape[0]):
         if n not in bw.dead_nodes:
             el = np.linalg.inv(L[n])
@@ -32,7 +32,7 @@ def plot_2d(ax, data, A, mu, L, n_obs, bw):
             el.set_clip_box(ax.bbox)
             el.set_facecolor('#ed6713')
             ax.add_artist(el)
-            ax.text(mu[n,0] + .3,mu[n,1] + .3,str(n))
+            ax.text(mu[n,0] + .3,mu[n,1] + .3,str(n), clip_on=True)
         else:
             el = np.linalg.inv(L[n])
             sig = el.T @ el

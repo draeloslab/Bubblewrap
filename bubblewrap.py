@@ -104,7 +104,10 @@ class Bubblewrap():
             self.L[n] = np.linalg.inv(L).T
             self.L_diag[n] = np.log(np.diag(self.L[n]))        
         self.L_lower = np.tril(self.L,-1)        
-        self.sigma_orig = fullSigma[0] 
+        self.sigma_orig = fullSigma[0]
+
+        self.D = np.eye(self.alpha.shape[0])
+        self.Ct_y = np.zeros(self.alpha.shape[0])
 
         ## Set up gradients
         ## Change grad to value_and_grad if we want Q values
@@ -146,6 +149,12 @@ class Bubblewrap():
         self.time_pred = []
         self.entropy_list = []
         self.pred_list = []
+        self.beh_regret_list = []
+        self.beh_list = []
+
+        #TODO: n_bheaviors as an argument
+        n_behaviors = 2
+        self.beh_counts = np.zeros(shape=(self.N,n_behaviors))
         self.alpha_list = []
         self.A_list = []
         self.loss = []
@@ -153,16 +162,17 @@ class Bubblewrap():
         self.t = 1
 
 
-    def observe(self, x, b=None):
+    def observe(self, x, behavior=None):
+        # TODO: force you to always or never give behavior
         # Get new data point and update observation history
 
         ## Do all observations, and then update mu0, sigma0
         if self.batch:
-            for o in x: # x array of observations
-                self.obs.new_obs(o)
+            for i in range(len(x)): # x array of observations
+                self.obs.new_obs(x[i], behavior[i])
         else:
-                self.obs.new_obs(x)
-        
+                self.obs.new_obs(x, behavior)
+
         if not self.go_fast and self.obs.cov is not None and self.mu_orig is not None:
             lamr = 0.02
             eta = np.sqrt(lamr * np.diag(self.obs.cov))
@@ -171,13 +181,13 @@ class Bubblewrap():
             self.sigma_orig = self.obs.cov * (self.nu + self.d + 1) / (self.N**(2/self.d))   
          
 
-    def e_step(self, future_observations=None, do_it_old_way=False):
+    def e_step(self, future_observations=None):
         # take E step; after observation
         if self.batch:
             for index, o in enumerate(self.obs.saved_obs):
-                self.single_e_step(o, future_observations=future_observations[index], do_it_old_way=do_it_old_way)
+                self.single_e_step(o, future_observations=future_observations[index])
         else:
-            self.single_e_step(self.obs.curr, future_observations=future_observations, do_it_old_way=do_it_old_way)
+            self.single_e_step(self.obs.curr, future_observations=future_observations)
 
 
     def single_e_step(self, x, future_observations=None, do_it_old_way=False):
@@ -192,19 +202,15 @@ class Bubblewrap():
             new_pred = []
             new_ent = []
 
-            if do_it_old_way:
-                for idx, step in enumerate(self.lookahead_steps):
-                    new_pred.append(self.pred_ahead(self.logB_jax(x, self.mu, self.L, self.L_diag), self.A, self.alpha, step))
-                    new_ent.append(self.get_entropy(self.A, self.alpha, step))
-            else:
-                for idx, step in enumerate(self.lookahead_steps):
-                    if step in future_observations:
-                        # todo: special case for `step == 1`
-                        new_pred.append(self.pred_ahead(self.logB_jax(future_observations[step], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
-                    else:
-                        new_pred.append(np.nan)
+            for idx, step in enumerate(self.lookahead_steps):
+                if step in future_observations:
+                    # todo: special case for `step == 1`
+                    new_pred.append(self.pred_ahead(self.logB_jax(future_observations[step], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
+                else:
+                    new_pred.append(np.nan)
 
-                    new_ent.append(self.get_entropy(self.A, self.alpha, step))
+                new_ent.append(self.get_entropy(self.A, self.alpha, step))
+
 
             self.pred_list.append(new_pred)
             self.entropy_list.append(new_ent)
@@ -213,10 +219,30 @@ class Bubblewrap():
                 warnings.warn("This is saving A for all timesteps; if A is big, this can take a lot of space.")
                 self.A_list.append(np.array(self.A))
 
+
         self.update_B(x)
 
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B, self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
-        
+
+        b = self.obs.saved_behavior[-1][0]
+        if not np.isnan(b):
+            w = self.D @ self.Ct_y
+            behavior_prediction = w @ self.alpha
+            self.beh_list.append(behavior_prediction)
+            self.beh_regret_list.append((b - behavior_prediction) ** 2)
+            assert b in {1,-1}
+            b = int((b+1)//2)
+            a = np.argmax(self.alpha)
+            self.beh_counts = self.beh_counts.at[a, b].add(1)
+
+
+            balance = 1
+            # balance = 1
+            _alpha = self.alpha.reshape(-1,1)
+            _D = self.D / balance
+            self.D = _D - _D @ _alpha @ _alpha.T @ _D / (1 + _alpha.T @ _D @ _alpha)
+            self.Ct_y = self.Ct_y * balance + self.alpha * self.obs.saved_behavior[-1]
+
         self.t += 1     
 
 
@@ -424,6 +450,7 @@ class Observations:
 
         self.curr = None
         self.saved_obs = deque(maxlen=self.M)
+        self.saved_behavior = deque(maxlen=self.M) #TODO: this should be more rigorous
 
         self.mean = None
         self.last_mean = None
@@ -432,11 +459,13 @@ class Observations:
         
         self.n_obs = 0
 
-    def new_obs(self, coord_new):
+    def new_obs(self, coord_new, behavior=None):
         self.curr = coord_new
         self.saved_obs.append(self.curr)
+        if behavior is not None:
+            self.saved_behavior.append(behavior)
         self.n_obs += 1
-       
+
         if not self.go_fast:
             if self.mean is None:
                 self.mean = self.curr.copy()
