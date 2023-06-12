@@ -41,7 +41,7 @@ default_rwd_parameters = dict(
     batch=False,
     batch_size=1,
     go_fast=False,
-    lookahead_steps=[1, 2, 3, 4, 5, 8, 10, 16, 32, 64, 128],
+    lookahead_steps=[1, 2, 5, 10],
     seed=42,
     save_A=False,
     balance=1,
@@ -404,10 +404,10 @@ def compare_new_and_old_way_main():
     compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
 
 if __name__ == "__main__":
-    file = "./generated/datasets/jpca_reduced_sc.npz"
+    file = "./generated/datasets/monkey_reach_reduced_pro_all_bw_all.npz"
 
     # simple_run(file, dict(default_rwd_parameters, num=50), nth_frame=None, end=53)
     simple_run(file,
-               dict(default_rwd_parameters, num=200, balance=1),
-               keep_every_nth_frame=1, movie_range=[4000,4100], fps=10,
-               end=None, tiles=2, invert_alternate_behavior=False)
+               dict(default_rwd_parameters, num=2_000, M=20, step=8e-3, eps=0 , balance=1),
+               # keep_every_nth_frame=1, movie_range=[4000,4100], fps=10,
+               end=20_000, tiles=1, invert_alternate_behavior=False)

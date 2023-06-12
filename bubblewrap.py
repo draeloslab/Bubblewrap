@@ -107,8 +107,10 @@ class Bubblewrap():
         self.L_lower = np.tril(self.L,-1)        
         self.sigma_orig = fullSigma[0]
 
-        self.D = numpy.eye(self.alpha.shape[0] + 1)
-        self.Ct_y = numpy.zeros((self.alpha.shape[0] + 1,1))
+        # self.D = numpy.eye(self.alpha.shape[0] + 1)
+        # self.Ct_y = numpy.zeros((self.alpha.shape[0] + 1,1))
+        self.D = numpy.eye(self.alpha.shape[0])
+        self.Ct_y = numpy.zeros((self.alpha.shape[0], 1))
 
         ## Set up gradients
         ## Change grad to value_and_grad if we want Q values
@@ -225,7 +227,8 @@ class Bubblewrap():
 
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B, self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
 
-        b = self.obs.saved_behavior[-1][0]
+
+        b = self.obs.saved_behavior[-1][0] if len(self.obs.saved_behavior) else np.nan
         if not np.isnan(b):
             w = self.D @ self.Ct_y
 
@@ -237,7 +240,8 @@ class Bubblewrap():
 
             w = w * reweight_vector
 
-            _alpha = numpy.array(numpy.vstack([self.alpha.reshape(-1,1), [1]]))
+            # _alpha = numpy.array(numpy.vstack([self.alpha.reshape(-1,1), [1]]))
+            _alpha = numpy.array(self.alpha.reshape(-1,1))
             behavior_prediction = (w.T @ _alpha)[0,0]
             self.beh_list.append(behavior_prediction)
             self.beh_regret_list.append((b - behavior_prediction) ** 2)
