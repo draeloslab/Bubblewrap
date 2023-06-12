@@ -16,7 +16,11 @@ def br_plot_2d(br):
     plot_2d(ax, data, br.A, br.mu, br.L, n_obs)
     plt.show()
 
-def plot_2d(ax, data, A, mu, L, n_obs, bw):
+def plot_2d(ax, data, bw):
+    A = bw.A
+    mu = bw.mu
+    L = bw.L
+    n_obs = np.array(bw.n_obs)
     # todo: remove bw
     ax.cla()
     ax.scatter(data[:,0], data[:,1], s=5, color='#004cff', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
@@ -32,7 +36,8 @@ def plot_2d(ax, data, A, mu, L, n_obs, bw):
             el.set_clip_box(ax.bbox)
             el.set_facecolor('#ed6713')
             ax.add_artist(el)
-            ax.text(mu[n,0] + .3,mu[n,1] + .3,str(n), clip_on=True)
+            d = min(width,height)
+            ax.text(mu[n,0] + .5*d,mu[n,1] +.5*d,str(n), clip_on=True)
         else:
             el = np.linalg.inv(L[n])
             sig = el.T @ el
@@ -49,7 +54,36 @@ def plot_2d(ax, data, A, mu, L, n_obs, bw):
     mask[n_obs < .1] = False
     mask[bw.dead_nodes] = False
     ax.scatter(mu[mask, 0], mu[mask, 1], c='k', zorder=10)
+    ax.scatter(data[0,0], data[0,1], color="#004cff", s=10)
 
+
+def plot_current_2d(ax, data, bw):
+    A = bw.A
+    mu = bw.mu
+    L = bw.L
+    n_obs = np.array(bw.n_obs)
+    # todo: remove bw
+    ax.cla()
+    ax.scatter(data[:,0], data[:,1], s=5, color='#004cff', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
+    ax.scatter(data[-1,0], data[-1,1], s=10, color='red')
+
+    to_draw = np.argsort(np.array(bw.alpha))[-3:]
+    opacities = np.array(bw.alpha)[to_draw]
+    opacities = opacities * .5/opacities.max()
+
+    for i, n in enumerate(to_draw):
+        el = np.linalg.inv(L[n])
+        sig = el.T @ el
+        u,s,v = np.linalg.svd(sig)
+        width, height = np.sqrt(s[0])*3, np.sqrt(s[1])*3
+        angle = atan2(v[0,1],v[0,0])*360 / (2*np.pi)
+        el = Ellipse((mu[n,0], mu[n,1]), width, height, angle=angle, zorder=8)
+        el.set_alpha(opacities[i])
+        el.set_clip_box(ax.bbox)
+        el.set_facecolor('#ed6713')
+        ax.add_artist(el)
+        d = min(width,height)
+        ax.text(mu[n,0] + .25*d,mu[n,1] + .25*d,str(n), alpha=min(opacities[i] * 2,1), clip_on=True)
 
 
 def br_plot_3d(br):

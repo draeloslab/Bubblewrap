@@ -9,7 +9,7 @@ import matplotlib.pylab as plt
 from matplotlib.animation import FFMpegFileWriter
 
 from bubblewrap import Bubblewrap
-from plot_2d_3d import plot_2d, plot_A_differences
+from plot_2d_3d import plot_2d, plot_A_differences, plot_current_2d
 from bubblewrap_run import BubblewrapRun
 
 from math import atan2, floor
@@ -44,6 +44,7 @@ default_rwd_parameters = dict(
     lookahead_steps=[1, 2, 3, 4, 5, 8, 10, 16, 32, 64, 128],
     seed=42,
     save_A=False,
+    balance=1,
 )
 
 default_clock_parameters = dict(
@@ -60,17 +61,30 @@ default_clock_parameters = dict(
     lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 30, 50],
     seed=42,
     save_A=False,
+    balance=1
 )
 
 def show_bubbles(ax, data, bw, params, step, i, keep_every_nth_frame):
     ax.cla()
 
     d = data[0:i+params["M"]+step]
-    plot_2d(ax, d, bw.A, bw.mu, bw.L, np.array(bw.n_obs), bw)
+    plot_2d(ax, d, bw)
 
     d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
     ax.plot(d[:,0], d[:,1], 'k.')
-    ax.set_title("Observation Model (Bubbles)")
+    ax.set_title(f"Observation Model (Bubbles) (i={i})")
+    ax.set_xlabel("neuron 1")
+    ax.set_ylabel("neuron 2")
+
+
+def show_inhabited_bubbles(ax, data, bw, params, step, i, keep_every_nth_frame):
+    ax.cla()
+
+    d = data[0:i+params["M"]+step]
+    plot_current_2d(ax, d, bw)
+
+    d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
+    ax.set_title(f"Currrent Bubbles (i={i})")
     ax.set_xlabel("neuron 1")
     ax.set_ylabel("neuron 2")
 
@@ -86,6 +100,21 @@ def show_A(ax, bw):
     live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
     ax.set_yticks(live_nodes)
 
+def show_D(ax, bw):
+    ax.cla()
+    ims = ax.imshow(bw.D, aspect='equal', interpolation='nearest')
+    ax.set_title("D")
+
+def show_Ct_y(ax, bw):
+    old_ylim = ax.get_ylim()
+    ax.cla()
+    ax.plot(bw.Ct_y, '.-')
+    ax.set_title("Ct_y")
+
+    new_ylim = ax.get_ylim()
+    ax.set_ylim([min(old_ylim[0], new_ylim[0]), max(old_ylim[1], new_ylim[1])])
+
+
 def show_alpha(ax, bw):
     ax.cla()
     ims = ax.imshow(np.array(bw.alpha_list[-19:] + [bw.alpha]).T, aspect='auto', interpolation='nearest')
@@ -97,6 +126,12 @@ def show_alpha(ax, bw):
     ax.set_xlabel("steps (ago)")
     # ax.set_xticks([0.5,5,10,15,20])
     # ax.set_xticklabels([-20, -15, -10, -5, 0])
+def show_behavior_variables(ax, bw, obs):
+    ax.cla()
+    ax.plot(bw.beh_list[-20:])
+    ax.plot(obs[-20:])
+    ax.set_ylim([-21,21])
+    ax.set_title("Behavior prediction")
 
 def show_A_eigenspectrum(ax, bw):
     ax.cla()
@@ -171,13 +206,29 @@ def show_w(ax,bw):
     ax.set_xlabel("bubble #")
     ax.set_ylabel("weight magnitude")
 
-def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None):
+def show_w_sideways(ax,bw, obs):
+    ax.cla()
+    w = np.array(bw.D @ bw.Ct_y)
+    w[bw.dead_nodes] = 0
+
+    a = np.array(bw.alpha)
+    a = a / np.max(a)
+    ax.plot(w, np.arange(w.size), alpha=0.25)
+    ax.scatter(w, np.arange(w.size), alpha=a, c="C0")
+    ylim = ax.get_ylim()
+    ax.vlines(obs[-1], alpha=.5, ymin=ylim[0], ymax=ylim[1], colors="C1" )
+    ax.set_ylabel("bubble #")
+    ax.set_xlabel("weight magnitude")
+    ax.set_title(r"Weights (times $\alpha$)")
+    ax.set_xlim([-21, 21])
+
+def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None, tiles=1, movie_range=None,  invert_alternate_behavior=False, fps=20):
     """this runs bubblewrap; it also generates a movie if `keep_every_nth_frame` is not None"""
     if keep_every_nth_frame is not None:
         fig, ax = plt.subplots(2, 2, figsize=(10,10), layout='tight')
         # fig, ax = plt.subplots(1, 2, figsize=(10,7), layout='tight')
 
-        moviewriter = FFMpegFileWriter(fps=20)
+        moviewriter = FFMpegFileWriter(fps=fps)
         moviewriter.setup(fig, "generated/movie.mp4", dpi=100)
     else:
         moviewriter = None
@@ -188,10 +239,13 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
         data = s.T
     elif "npz" in file:
         data = s['y'][0]
-        obs = s['x']
+        pre_obs = s['x']
 
-        data = np.tile(data, reps=(64,1))
-        obs = np.tile(obs, reps=64)
+        data = np.tile(data, reps=(tiles,1))
+        obs = pre_obs
+        for i in range(1,tiles):
+            c = (-1)**i if invert_alternate_behavior else 1
+            obs = np.hstack((obs, pre_obs*c))
 
     T = data.shape[0]       # should be big (like 20k)
     d = data.shape[1]       # should be small-ish (like 6)
@@ -240,17 +294,18 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
         if keep_every_nth_frame is not None:
             assert step == 1 # the keep_every_th assumes the step is 1
             if i % keep_every_nth_frame == 0:
-                show_bubbles(ax[0,0], data, bw, params, step, i, keep_every_nth_frame)
-                # show_nstep_pred_pdf(ax[0,1], bw, data, last_seen, ax[0,0], fig, n=1)
-                show_w(ax[0,1], bw)
-                show_A(ax[1,0], bw)
-                show_alpha(ax[1,1], bw)
+                if movie_range is None or (movie_range[0] <= i < movie_range[1]):
+                    show_inhabited_bubbles(ax[0,0], data, bw, params, step, i, keep_every_nth_frame)
+                    # show_nstep_pred_pdf(ax[0,1], bw, data, last_seen, ax[0,0], fig, n=1)
+                    show_w_sideways(ax[1,1], bw, obs[:end_of_block])
+                    show_alpha(ax[1,0], bw)
+                    show_behavior_variables(ax[0,1], bw, obs[:end_of_block])
 
-                # show_data_distance(ax[0], data, end_of_block, max_step=300)
-                # show_A_eigenspectrum(ax[1], bw)
+                    # show_data_distance(ax[0], data, end_of_block, max_step=300)
+                    # show_A_eigenspectrum(ax[1], bw)
 
 
-                moviewriter.grab_frame()
+                    moviewriter.grab_frame()
     if keep_every_nth_frame is not None:
         moviewriter.finish()
 
@@ -316,8 +371,8 @@ def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
     print(f"dataset = '{file.split('/')[-1]}'")
 
 
-def simple_run(file, parameters, nth_frame=10, end=None):
-    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=nth_frame, end=end)
+def simple_run(file, parameters, **kwargs):
+    bw, moviewriter = run_bubblewrap(file, parameters, **kwargs)
     # plot_bubblewrap_results(bw)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
@@ -349,10 +404,10 @@ def compare_new_and_old_way_main():
     compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
 
 if __name__ == "__main__":
-    file = "./generated/datasets/clock-steadier_farther.npz"
-    file = "./generated/datasets/clock-halfspeed_farther.npz"
-    file = "./generated/datasets/clock_wandering_01.npz"
-    file = "./generated/datasets/jpca_reduced.npz"
+    file = "./generated/datasets/jpca_reduced_sc.npz"
 
     # simple_run(file, dict(default_rwd_parameters, num=50), nth_frame=None, end=53)
-    simple_run(file, dict(default_rwd_parameters, num=30), nth_frame=100, end=None)
+    simple_run(file,
+               dict(default_rwd_parameters, num=200, balance=1),
+               keep_every_nth_frame=1, movie_range=[4000,4500], fps=10,
+               end=None, tiles=2, invert_alternate_behavior=False)

@@ -16,12 +16,13 @@ import warnings
 epsilon = 1e-10
 
 class Bubblewrap():
-    def __init__(self, dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False, save_A=False):
+    def __init__(self, dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False, save_A=False, balance=1):
         self.N = num            # Number of nodes
         self.d = dim            # dimension of the space
         self.seed = seed
         self.lam_0 = lam
         self.nu = nu
+        self.balance = balance
 
         self.eps = eps
         self.B_thresh = B_thresh
@@ -154,7 +155,7 @@ class Bubblewrap():
 
         #TODO: n_bheaviors as an argument
         n_behaviors = 2
-        self.beh_counts = np.zeros(shape=(self.N,n_behaviors))
+        # self.beh_counts = numpy.zeros(shape=(self.N,n_behaviors))
         self.alpha_list = []
         self.A_list = []
         self.loss = []
@@ -227,21 +228,31 @@ class Bubblewrap():
         b = self.obs.saved_behavior[-1][0]
         if not np.isnan(b):
             w = self.D @ self.Ct_y
+
+            reweight_vector = numpy.ones(shape=w.shape)
+            reweight_vector[self.dead_nodes] = 0
+
+            # reweight_vector = numpy.exp(self.n_obs)
+            # w = (w * reweight_vector)/reweight_vector.sum()
+
+            w = w * reweight_vector
             behavior_prediction = w @ self.alpha
             self.beh_list.append(behavior_prediction)
             self.beh_regret_list.append((b - behavior_prediction) ** 2)
-            assert b in {1,-1}
-            b = int((b+1)//2)
-            a = np.argmax(self.alpha)
-            self.beh_counts = self.beh_counts.at[a, b].add(1)
+
+            # if self.beh_regret_list[-1] > 10 or not np.isfinite(self.beh_regret_list[-1]):
+            #     print("hit")
+
+            # assert b in {1,-1}
+            # b = int((b+1)//2)
+            # a = np.argmax(self.alpha)
+            # self.beh_counts[a,b] += 1
 
 
-            balance = 1
-            # balance = 1
             _alpha = self.alpha.reshape(-1,1)
-            _D = self.D / balance
+            _D = self.D / self.balance
             self.D = _D - _D @ _alpha @ _alpha.T @ _D / (1 + _alpha.T @ _D @ _alpha)
-            self.Ct_y = self.Ct_y * balance + self.alpha * self.obs.saved_behavior[-1]
+            self.Ct_y = self.Ct_y * self.balance + self.alpha * self.obs.saved_behavior[-1]
 
         self.t += 1     
 
