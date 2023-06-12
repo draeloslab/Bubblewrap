@@ -409,5 +409,5 @@ if __name__ == "__main__":
     # simple_run(file, dict(default_rwd_parameters, num=50), nth_frame=None, end=53)
     simple_run(file,
                dict(default_rwd_parameters, num=200, balance=1),
-               keep_every_nth_frame=1, movie_range=[4000,4500], fps=10,
+               keep_every_nth_frame=1, movie_range=[4000,4100], fps=10,
                end=None, tiles=2, invert_alternate_behavior=False)
