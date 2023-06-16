@@ -16,11 +16,16 @@ class BubblewrapRun:
         self.L = np.array(bw.L)
         self.n_obs = np.array(bw.n_obs)
         self.pred_list = np.array(bw.pred_list)
-        self.beh_regret_list = np.array(bw.beh_regret_list)
+        self.beh_error_list = np.array(bw.beh_error_list)
+        self.beh_regr_list = np.array(bw.beh_regr_list)
         self.beh_list = np.array(bw.beh_list)
+        self.time_spent_on_w = bw.time_spent_on_w
+        self.w_list = np.array(bw.w_list)
         self.D = np.array(bw.D)
         self.Ct_y = np.array(bw.Ct_y)
         self.entropy_list = np.array(bw.entropy_list)
+
+        self.n_living_list = np.array(bw.n_living_list)
         if hasattr(bw, "alpha_list"):
             # todo: check if I need this guard
             self.alpha_list = np.array(bw.alpha_list)

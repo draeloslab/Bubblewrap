@@ -16,9 +16,10 @@ import warnings
 epsilon = 1e-10
 
 class Bubblewrap():
-    def __init__(self, dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False, save_A=False, balance=1):
+    def __init__(self, dim, beh_dim=3, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False, save_A=False, balance=1, beh_reg_constant_term=False, behavior_shift=0):
         self.N = num            # Number of nodes
         self.d = dim            # dimension of the space
+        self.b_d = beh_dim # todo: make this a force option?
         self.seed = seed
         self.lam_0 = lam
         self.nu = nu
@@ -43,6 +44,9 @@ class Bubblewrap():
 
         self.go_fast = go_fast
         self.save_A = save_A
+        self.beh_reg_constant_term = beh_reg_constant_term
+        self.behavior_shift = behavior_shift
+        self.time_spent_on_w = 0
 
         self.key = random.PRNGKey(self.seed)
         numpy.random.seed(self.seed)
@@ -107,10 +111,14 @@ class Bubblewrap():
         self.L_lower = np.tril(self.L,-1)        
         self.sigma_orig = fullSigma[0]
 
-        # self.D = numpy.eye(self.alpha.shape[0] + 1)
-        # self.Ct_y = numpy.zeros((self.alpha.shape[0] + 1,1))
-        self.D = numpy.eye(self.alpha.shape[0])
-        self.Ct_y = numpy.zeros((self.alpha.shape[0], 1))
+        if self.beh_reg_constant_term:
+            self.D = numpy.eye(self.alpha.shape[0] + 1)
+            self.Ct_y = numpy.zeros((self.alpha.shape[0] + 1, self.b_d))
+        else:
+            self.D = numpy.eye(self.alpha.shape[0])
+            self.Ct_y = numpy.zeros((self.alpha.shape[0], self.b_d))
+
+        self.a_outer = numpy.zeros(self.D.shape)
 
         ## Set up gradients
         ## Change grad to value_and_grad if we want Q values
@@ -152,13 +160,16 @@ class Bubblewrap():
         self.time_pred = []
         self.entropy_list = []
         self.pred_list = []
-        self.beh_regret_list = []
+        self.beh_error_list = []
+        self.beh_regr_list = []
         self.beh_list = []
 
         #TODO: n_bheaviors as an argument
         n_behaviors = 2
         # self.beh_counts = numpy.zeros(shape=(self.N,n_behaviors))
         self.alpha_list = []
+        self.n_living_list = []
+        self.w_list = []
         self.A_list = []
         self.loss = []
 
@@ -218,6 +229,7 @@ class Bubblewrap():
             self.pred_list.append(new_pred)
             self.entropy_list.append(new_ent)
             self.alpha_list.append(np.array(self.alpha))
+            self.n_living_list.append(self.N - len(self.dead_nodes))
             if self.save_A:
                 warnings.warn("This is saving A for all timesteps; if A is big, this can take a lot of space.")
                 self.A_list.append(np.array(self.A))
@@ -229,35 +241,37 @@ class Bubblewrap():
 
 
         b = self.obs.saved_behavior[-1][0] if len(self.obs.saved_behavior) else np.nan
-        if not np.isnan(b):
+        if not numpy.any(numpy.isnan(b)):
+            start = time.time()
             w = self.D @ self.Ct_y
 
             reweight_vector = numpy.ones(shape=w.shape)
-            reweight_vector[self.dead_nodes] = 0
+            reweight_vector[self.dead_nodes,:] = 0
 
             # reweight_vector = numpy.exp(self.n_obs)
             # w = (w * reweight_vector)/reweight_vector.sum()
 
             w = w * reweight_vector
 
-            # _alpha = numpy.array(numpy.vstack([self.alpha.reshape(-1,1), [1]]))
-            _alpha = numpy.array(self.alpha.reshape(-1,1))
-            behavior_prediction = (w.T @ _alpha)[0,0]
+            _alpha = numpy.array(self.alpha @ numpy.linalg.matrix_power(self.A, self.behavior_shift)).reshape(-1,1)
+            if self.beh_reg_constant_term:
+                _alpha = numpy.vstack([_alpha, [1]])
+
+            behavior_prediction = np.squeeze((w.T @ _alpha))
             self.beh_list.append(behavior_prediction)
-            self.beh_regret_list.append((b - behavior_prediction) ** 2)
-
-            # if self.beh_regret_list[-1] > 10 or not np.isfinite(self.beh_regret_list[-1]):
-            #     print("hit")
-
-            # assert b in {1,-1}
-            # b = int((b+1)//2)
-            # a = np.argmax(self.alpha)
-            # self.beh_counts[a,b] += 1
+            self.beh_error_list.append((b - behavior_prediction) ** 2)
 
 
             _D = self.D / self.balance
             self.D = _D - _D @ _alpha @ _alpha.T @ _D / (1 + _alpha.T @ _D @ _alpha)
-            self.Ct_y = self.Ct_y * self.balance + _alpha * self.obs.saved_behavior[-1]
+            self.Ct_y = self.Ct_y * self.balance + _alpha * b
+
+            self.a_outer += _alpha @ _alpha.T
+            regr = -2 * w.T @ self.Ct_y + w.T @ self.a_outer @ w
+            self.beh_regr_list.append(numpy.squeeze(regr))
+            end = time.time()
+            self.time_spent_on_w += end - start
+            self.w_list.append(w)
 
         self.t += 1     
 

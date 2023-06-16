@@ -45,6 +45,7 @@ default_rwd_parameters = dict(
     seed=42,
     save_A=False,
     balance=1,
+    beh_reg_constant_term=True
 )
 
 default_clock_parameters = dict(
@@ -61,7 +62,8 @@ default_clock_parameters = dict(
     lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 30, 50],
     seed=42,
     save_A=False,
-    balance=1
+    balance=1,
+    beh_reg_constant_term=True
 )
 
 def show_bubbles(ax, data, bw, params, step, i, keep_every_nth_frame):
@@ -222,8 +224,10 @@ def show_w_sideways(ax,bw, obs):
     ax.set_title(r"Weights (times $\alpha$)")
     ax.set_xlim([-21, 21])
 
-def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None, tiles=1, movie_range=None,  invert_alternate_behavior=False, fps=20):
+def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None, tiles=1, movie_range=None,  invert_alternate_behavior=False, fps=20, behavior_shift=1, data_transform="n"):
     """this runs bubblewrap; it also generates a movie if `keep_every_nth_frame` is not None"""
+
+
     if keep_every_nth_frame is not None:
         fig, ax = plt.subplots(2, 2, figsize=(10,10), layout='tight')
         # fig, ax = plt.subplots(1, 2, figsize=(10,7), layout='tight')
@@ -246,26 +250,55 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
         for i in range(1,tiles):
             c = (-1)**i if invert_alternate_behavior else 1
             obs = np.hstack((obs, pre_obs*c))
+    else:
+        raise Exception("Unknown file extension.")
+
+
+    old_data = np.array(data)
+    old_obs = np.array(obs)
+
+    if data_transform == "n,b":
+        data = np.hstack([data, obs])
+    elif data_transform == "n":
+        data = np.hstack([data])
+    elif data_transform == "b":
+        data = np.hstack([obs])
+    else:
+        raise Exception("You need to set data_transform")
+
+
+    obs = np.hstack([old_data,old_obs])
+
 
     T = data.shape[0]       # should be big (like 20k)
     d = data.shape[1]       # should be small-ish (like 6)
-    bw = Bubblewrap(d, **params)
 
+    start = time.time()
+    #todo:fix this
+    params["behavior_shift"] = behavior_shift
+    bw = Bubblewrap(d, beh_dim=obs.shape[1], **params)
 
-    # obs[obs > 0] = 2
-
-    # a = 0
-    # b = 7
-    # old = obs==b
-    # obs[obs==a] = b
-    # obs[old] = a
 
     ## Set up for online run through dataset
 
     init = -params["M"]
     if end is None:
         # end = T-(params["M"] + max(bw.lookahead_steps))
-        end = T - params["M"]
+        end = T
+    else:
+        if end < 0:
+            end = T + end
+
+    if end > T - behavior_shift:
+        end = T - behavior_shift
+
+    if movie_range is not None:
+        movie_range = [m if m >=0 else T+m for m in movie_range]
+        movie_range = np.array(movie_range) - params["M"]
+
+    end = end - params["M"]
+
+
     step = params["batch_size"]
 
     # Initialize things
@@ -280,7 +313,10 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
     for i in tqdm(np.arange(init, end, step)):
         start_of_block = i+params["M"]
         end_of_block = i+params["M"]+step
-        bw.observe(data[start_of_block:end_of_block], obs[start_of_block:end_of_block])
+        bw.observe(data[start_of_block:end_of_block], obs[start_of_block+behavior_shift:end_of_block+behavior_shift])
+        # if i > 800:
+        # else:
+        #     bw.observe(data[start_of_block:end_of_block], np.nan * obs[start_of_block+behavior_shift:end_of_block+behavior_shift])
         last_seen = end_of_block - 1
 
         future_observations = {}
@@ -296,20 +332,22 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
             if i % keep_every_nth_frame == 0:
                 if movie_range is None or (movie_range[0] <= i < movie_range[1]):
                     show_inhabited_bubbles(ax[0,0], data, bw, params, step, i, keep_every_nth_frame)
-                    # show_nstep_pred_pdf(ax[0,1], bw, data, last_seen, ax[0,0], fig, n=1)
-                    show_w_sideways(ax[1,1], bw, obs[:end_of_block])
+                    # show_w_sideways(ax[1,1], bw, obs[:end_of_block])
                     show_alpha(ax[1,0], bw)
-                    show_behavior_variables(ax[0,1], bw, obs[:end_of_block])
+                    # show_behavior_variables(ax[0,1], bw, obs[:end_of_block])
+                    show_data_distance(ax[0,1], data, end_of_block, max_step=20)
 
-                    # show_data_distance(ax[0], data, end_of_block, max_step=300)
+                    # show_nstep_pred_pdf(ax[0,1], bw, data, last_seen, ax[0,0], fig, n=1)
+
                     # show_A_eigenspectrum(ax[1], bw)
 
 
                     moviewriter.grab_frame()
+    end = time.time()
     if keep_every_nth_frame is not None:
         moviewriter.finish()
 
-    return bw, moviewriter
+    return bw, moviewriter, end-start
 
 
 def plot_bubblewrap_results(bw, running_average_length=500):
@@ -342,13 +380,13 @@ def plot_bubblewrap_results(bw, running_average_length=500):
 
 
 def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
-    bw, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=True, end=end)
+    bw, _, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=True, end=end)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
     old_file = br.outfile
     del br
 
-    bw, moviewriter = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
+    bw, moviewriter, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
     br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
     br.save()
     new_file = br.outfile
@@ -358,7 +396,7 @@ def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
         shuffle_file = file.split("/")
         shuffle_file[-1] ="shuffled_" + shuffle_file[-1]
         shuffle_file = "/".join(shuffle_file)
-        bw, moviewriter = run_bubblewrap(shuffle_file, parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
+        bw, moviewriter, time_spent = run_bubblewrap(shuffle_file, parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
         br = BubblewrapRun(bw, file=shuffle_file, bw_parameters=parameters)
         br.save()
         s_file = br.outfile
@@ -372,9 +410,9 @@ def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
 
 
 def simple_run(file, parameters, **kwargs):
-    bw, moviewriter = run_bubblewrap(file, parameters, **kwargs)
+    bw, moviewriter, time_spent = run_bubblewrap(file, parameters, **kwargs)
     # plot_bubblewrap_results(bw)
-    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br = BubblewrapRun(bw, file=file, bw_parameters=parameters, time_to_run=time_spent)
     br.save()
 
     if moviewriter is not None:
@@ -404,10 +442,27 @@ def compare_new_and_old_way_main():
     compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
 
 if __name__ == "__main__":
-    file = "./generated/datasets/monkey_reach_reduced_pro_all_bw_all.npz"
+    file = "./generated/datasets/monkey_reach_reduced_pro_all_bw_all_finger_all.npz"
 
-    # simple_run(file, dict(default_rwd_parameters, num=50), nth_frame=None, end=53)
-    simple_run(file,
-               dict(default_rwd_parameters, num=2_000, M=20, step=8e-3, eps=0 , balance=1),
-               # keep_every_nth_frame=1, movie_range=[4000,4100], fps=10,
-               end=20_000, tiles=1, invert_alternate_behavior=False)
+    # fewer nodes 1k, 100
+    # bigger M
+    # start at t=1000
+    # run for longer (5k t)
+    #
+
+    end = 35_000
+    for behavior_shift in [0,1,2,5,10,100]:
+        simple_run(file,
+                   dict(default_rwd_parameters, num=50, M=100, step=8e-3, eps=1e-3, balance=1),
+                   # keep_every_nth_frame=1, movie_range=[900,1000], fps=10,
+                   end=end, tiles=1, invert_alternate_behavior=False, behavior_shift=behavior_shift, data_transform="n,b")
+
+        simple_run(file,
+                   dict(default_rwd_parameters, num=50, M=100, step=8e-3, eps=1e-3, balance=1),
+                   # keep_every_nth_frame=1, movie_range=[900,1000], fps=10,
+                   end=end, tiles=1, invert_alternate_behavior=False, behavior_shift=behavior_shift, data_transform="n")
+
+        simple_run(file,
+                   dict(default_rwd_parameters, num=50, M=100, step=8e-3, eps=1e-3, balance=1),
+                   # keep_every_nth_frame=1, movie_range=[900,1000], fps=10,
+                   end=end, tiles=1, invert_alternate_behavior=False, behavior_shift=behavior_shift, data_transform="b")
