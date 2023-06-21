@@ -254,6 +254,7 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
         raise Exception("Unknown file extension.")
 
 
+    obs = obs.reshape((-1,1))
     old_data = np.array(data)
     old_obs = np.array(obs)
 
@@ -331,11 +332,12 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
             assert step == 1 # the keep_every_th assumes the step is 1
             if i % keep_every_nth_frame == 0:
                 if movie_range is None or (movie_range[0] <= i < movie_range[1]):
-                    show_inhabited_bubbles(ax[0,0], data, bw, params, step, i, keep_every_nth_frame)
+                    show_bubbles(ax[0,0], data, bw, params, step, i, keep_every_nth_frame)
+                    show_behavior_variables(ax[1,1],bw,obs)
                     # show_w_sideways(ax[1,1], bw, obs[:end_of_block])
                     show_alpha(ax[1,0], bw)
                     # show_behavior_variables(ax[0,1], bw, obs[:end_of_block])
-                    show_data_distance(ax[0,1], data, end_of_block, max_step=20)
+                    # show_w_sideways(ax[0,1],bw, obs)
 
                     # show_nstep_pred_pdf(ax[0,1], bw, data, last_seen, ax[0,0], fig, n=1)
 
@@ -424,25 +426,8 @@ def simple_run(file, parameters, **kwargs):
     print(br.outfile.split("/")[-1])
 
 
-def compare_new_and_old_way_main():
-    compare_old_and_new_ways("./generated/clock-steadier_farther.npz", dict(default_clock_parameters, save_A=True))
-    compare_old_and_new_ways("./generated/clock-slow_steadier_farther.npz", dict(default_clock_parameters, save_A=True))
-    compare_old_and_new_ways("./generated/clock-halfspeed_farther.npz", dict(default_clock_parameters, save_A=True))
-    compare_old_and_new_ways("./generated/clock-shuffled.npz", dict(default_clock_parameters, save_A=True))
-
-    compare_old_and_new_ways("./generated/jpca_reduced.npy", dict(default_rwd_parameters, save_A=True))
-    compare_old_and_new_ways("./generated/neuropixel_reduced.npz", dict(default_rwd_parameters, save_A=True), end=10_00)
-    compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters, save_A=True), end=10_000)
-    compare_old_and_new_ways("./generated/widefield_reduced.npy", dict(default_rwd_parameters, save_A=True), end=10_000)
-
-
-    compare_old_and_new_ways("./generated/neuropixel_reduced.npz", dict(default_rwd_parameters))
-    compare_old_and_new_ways("./generated/widefield_reduced.npy", dict(default_rwd_parameters))
-
-    compare_old_and_new_ways("./generated/reduced_mouse.npy", dict(default_rwd_parameters))
-
 if __name__ == "__main__":
-    file = "./generated/datasets/monkey_reach_reduced_pro_all_bw_all_finger_all.npz"
+    file = "./generated/datasets/clock-steadier_farther.npz"
 
     # fewer nodes 1k, 100
     # bigger M
@@ -450,19 +435,7 @@ if __name__ == "__main__":
     # run for longer (5k t)
     #
 
-    end = 35_000
-    for behavior_shift in [0,1,2,5,10,100]:
-        simple_run(file,
-                   dict(default_rwd_parameters, num=50, M=100, step=8e-3, eps=1e-3, balance=1),
-                   # keep_every_nth_frame=1, movie_range=[900,1000], fps=10,
-                   end=end, tiles=1, invert_alternate_behavior=False, behavior_shift=behavior_shift, data_transform="n,b")
-
-        simple_run(file,
-                   dict(default_rwd_parameters, num=50, M=100, step=8e-3, eps=1e-3, balance=1),
-                   # keep_every_nth_frame=1, movie_range=[900,1000], fps=10,
-                   end=end, tiles=1, invert_alternate_behavior=False, behavior_shift=behavior_shift, data_transform="n")
-
-        simple_run(file,
-                   dict(default_rwd_parameters, num=50, M=100, step=8e-3, eps=1e-3, balance=1),
-                   # keep_every_nth_frame=1, movie_range=[900,1000], fps=10,
-                   end=end, tiles=1, invert_alternate_behavior=False, behavior_shift=behavior_shift, data_transform="b")
+    simple_run(file,
+               dict(default_rwd_parameters, num=50, M=100, step=8e-3, eps=1e-3, balance=1),
+               keep_every_nth_frame=500, movie_range=None, fps=10,
+               end=None, tiles=3, invert_alternate_behavior=True, behavior_shift=1, data_transform="n")
