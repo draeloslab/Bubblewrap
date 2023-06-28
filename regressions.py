@@ -237,6 +237,17 @@ class WindowFast(OnlineRegresion):
         return np.squeeze(x.T @ w)
 
 
+"""
+ideas:
+    periodically recalculate D and c
+    zero out small elements of D and c
+    threshold D and c values?
+    constant term and re-weighting
+    prior on constant term
+    force the constant term to be the mean
+"""
+
+
 if __name__ == '__main__':
 
     rng = np.random.default_rng()

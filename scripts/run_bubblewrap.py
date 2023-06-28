@@ -429,7 +429,7 @@ def simple_run(file, parameters, **kwargs):
 
 
 if __name__ == "__main__":
-    file = "./generated/datasets/clock-steadier_farther.npz"
+    file = "./generated/datasets/clock-halfspeed_farther.npz"
 
     # fewer nodes 1k, 100
     # bigger M
@@ -438,6 +438,6 @@ if __name__ == "__main__":
     #
 
     simple_run(file,
-               dict(default_rwd_parameters, num=50, M=100, step=8e-3, eps=1e-3, balance=1),
-               keep_every_nth_frame=500, movie_range=None, fps=10,
+               dict(default_rwd_parameters, num=100, M=30, balance=1),
+               # keep_every_nth_frame=500, movie_range=None, fps=10,
                end=None, tiles=3, invert_alternate_behavior=True, behavior_shift=1, data_transform="n")

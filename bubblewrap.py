@@ -10,6 +10,7 @@ from scipy.stats import multivariate_normal as mvn
 from jax.scipy.special import logsumexp as lse
 from jax import nn, random
 from functools import partial
+from regressions import WindowFast
 import warnings
 
 
@@ -50,6 +51,9 @@ class Bubblewrap():
 
         self.key = random.PRNGKey(self.seed)
         numpy.random.seed(self.seed)
+
+        # regressor object
+        self.regressor = WindowFast(self.d, window_size=100)
 
         # observations of the data; M is how many to keep in history
         if self.batch: M=self.batch_size
@@ -111,14 +115,7 @@ class Bubblewrap():
         self.L_lower = np.tril(self.L,-1)        
         self.sigma_orig = fullSigma[0]
 
-        if self.beh_reg_constant_term:
-            self.D = numpy.eye(self.alpha.shape[0] + 1)
-            self.Ct_y = numpy.zeros((self.alpha.shape[0] + 1, self.b_d))
-        else:
-            self.D = numpy.eye(self.alpha.shape[0])
-            self.Ct_y = numpy.zeros((self.alpha.shape[0], self.b_d))
 
-        self.a_outer = numpy.zeros(self.D.shape)
 
         ## Set up gradients
         ## Change grad to value_and_grad if we want Q values
@@ -240,40 +237,17 @@ class Bubblewrap():
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B, self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
 
 
-        b = self.obs.saved_behavior[-1][0] if len(self.obs.saved_behavior) else np.nan
+        b = self.obs.saved_behavior[-1][0] if len(self.obs.saved_behavior) else numpy.nan
         if not numpy.any(numpy.isnan(b)):
             start = time.time()
-            w = self.D @ self.Ct_y
+            self.regressor.lazy_observe(numpy.array(self.alpha),b)
 
-            reweight_vector = numpy.ones(shape=w.shape)
-            reweight_vector[self.dead_nodes,:] = 0
-
-            # reweight_vector = numpy.exp(self.n_obs)
-            # w = (w * reweight_vector)/reweight_vector.sum()
-
-            w = w * reweight_vector
-
-            _alpha = numpy.array(self.alpha @ numpy.linalg.matrix_power(self.A, self.behavior_shift)).reshape(-1,1)
-            if self.beh_reg_constant_term:
-                _alpha = numpy.vstack([_alpha, [1]])
-
-            behavior_prediction = np.squeeze((w.T @ _alpha))
+            alpha_ahead = numpy.array(self.alpha @ numpy.linalg.matrix_power(self.A, self.behavior_shift)).reshape(-1,1)
+            behavior_prediction = self.regressor.predict(alpha_ahead)
             self.beh_list.append(behavior_prediction)
             self.beh_error_list.append((b - behavior_prediction) ** 2)
 
-
-            _D = self.D / self.balance
-            self.D = _D - _D @ _alpha @ _alpha.T @ _D / (1 + _alpha.T @ _D @ _alpha)
-            self.Ct_y = self.Ct_y * self.balance + _alpha * b
-
-            self.a_outer += _alpha @ _alpha.T
-            regr = -2 * w.T @ self.Ct_y + w.T @ self.a_outer @ w
-            self.beh_regr_list.append(numpy.squeeze(regr))
-            end = time.time()
-            self.time_spent_on_w += end - start
-            self.w_list.append(w)
-
-        self.t += 1     
+        self.t += 1
 
 
     def update_B(self, x):
