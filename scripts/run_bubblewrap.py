@@ -15,7 +15,9 @@ from bubblewrap_run import BubblewrapRun
 from math import atan2, floor
 from tqdm import tqdm
 
-matplotlib.use('QtAgg')
+import os
+if os.environ.get("display") is not None:
+    matplotlib.use('QtAgg')
 
 
 # ## Parameters

@@ -6,7 +6,9 @@ from matplotlib.patches import Ellipse
 from math import atan2, floor
 from bubblewrap_run import BubblewrapRun
 
-matplotlib.use('QtAgg')
+import os
+if os.environ.get("display") is not None:
+    matplotlib.use('QtAgg')
 
 def br_plot_2d(br):
     fig, ax = plt.subplots()
