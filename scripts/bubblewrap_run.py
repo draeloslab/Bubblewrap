@@ -21,8 +21,6 @@ class BubblewrapRun:
         self.beh_list = np.array(bw.beh_list)
         self.time_spent_on_w = bw.time_spent_on_w
         self.w_list = np.array(bw.w_list)
-        self.D = np.array(bw.D)
-        self.Ct_y = np.array(bw.Ct_y)
         self.entropy_list = np.array(bw.entropy_list)
 
         self.n_living_list = np.array(bw.n_living_list)

@@ -10,14 +10,14 @@ from scipy.stats import multivariate_normal as mvn
 from jax.scipy.special import logsumexp as lse
 from jax import nn, random
 from functools import partial
-from regressions import WindowFast
+from regressions import WindowFast, SymmetricNoisy
 import warnings
 
 
 epsilon = 1e-10
 
 class Bubblewrap():
-    def __init__(self, dim, beh_dim=3, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False, save_A=False, balance=1, beh_reg_constant_term=False, behavior_shift=0):
+    def __init__(self, dim, beh_dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False, save_A=False, balance=1, beh_reg_constant_term=False, behavior_shift=0):
         self.N = num            # Number of nodes
         self.d = dim            # dimension of the space
         self.b_d = beh_dim # todo: make this a force option?
@@ -53,7 +53,8 @@ class Bubblewrap():
         numpy.random.seed(self.seed)
 
         # regressor object
-        self.regressor = WindowFast(self.d, window_size=100)
+        # self.regressor = WindowFast(self.N, beh_dim, window_size=100)
+        self.regressor = SymmetricNoisy(self.N, beh_dim, forgetting_factor=1-(1e-2), noise_scale=1e-5)
 
         # observations of the data; M is how many to keep in history
         if self.batch: M=self.batch_size

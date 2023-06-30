@@ -23,7 +23,7 @@ class OnlineRegresion:
 
 
 class SymmetricNoisy(OnlineRegresion):
-    def __init__(self, d, forgetting_factor, noise_scale, n_perturbations=1, seed=24, init_min_ratio=3):
+    def __init__(self, N, n_obs, forgetting_factor, noise_scale, n_perturbations=1, seed=24, init_min_ratio=3):
         super().__init__()
 
         if n_perturbations < 1:
@@ -33,11 +33,12 @@ class SymmetricNoisy(OnlineRegresion):
             raise Exception("the forgetting factor should be in (0,1]")
 
         # core stuff
-        self.d = d
+        self.N = N
+        self.n_obs = n_obs
         self.forgetting_factor = forgetting_factor
         self.D = None
-        self.F = np.zeros([d, d])
-        self.c = np.zeros([d, 1])
+        self.F = np.zeros([N, N])
+        self.c = np.zeros([N, n_obs])
         self.noise_scale = noise_scale
         self.rng = np.random.default_rng(seed)
         self.n_perturbations = n_perturbations
@@ -75,37 +76,37 @@ class SymmetricNoisy(OnlineRegresion):
         self.n_observed += 1
 
     def lazy_observe(self, x, y):
-        if self.n_observed >= self.init_min_ratio * self.d or self.D is not None:
+        if self.n_observed >= self.init_min_ratio * self.N or self.D is not None:
             self.update(x, y, update_D=True)
         else:
             self.update(x, y, update_D=False)
-            if self.n_observed >= self.init_min_ratio * self.d:
+            if self.n_observed >= self.init_min_ratio * self.N:
                 self.initialize()
 
     def predict(self, x):
         if self.D is None:
-            return np.nan
+            return np.nan * np.ones(shape=[self.n_obs,])
 
         w = self.D @ self.c
         return np.squeeze(x.T @ w)
 
 
 class WindowSlow(OnlineRegresion):
-    def __init__(self, d,  window_size, forgetting_factor=1, init_min_ratio=3):
+    def __init__(self, N,  window_size, forgetting_factor=1, init_min_ratio=3):
         super().__init__()
 
         if forgetting_factor > 1:
             raise Exception("the forgetting factor should be in (0,1]")
 
         # core stuff
-        self.d = d
+        self.N = N
         self.forgetting_factor = forgetting_factor
         self.window_size = window_size
 
         self.x_window = []
         self.y_window = []
         self.D = None
-        self.c = np.zeros([d, 1])
+        self.c = np.zeros([N, 1])
 
 
         # initializations
@@ -117,7 +118,7 @@ class WindowSlow(OnlineRegresion):
             for i in np.arange(x.shape[0]):
                 self.update(x=x[i], y=y[i], update_D=False)
 
-        x_mat = np.array(self.x_window).reshape([-1,self.d])
+        x_mat = np.array(self.x_window).reshape([-1,self.N])
         self.D = np.linalg.pinv(x_mat.T @ x_mat)
 
     def update(self, x, y, update_D=False):
@@ -141,9 +142,9 @@ class WindowSlow(OnlineRegresion):
         self.x_window.append(x)
         self.y_window.append(y)
 
-        # update c and d
+        # update c and D
         # todo: think about this D and update_D decision more
-        x_mat = np.array(self.x_window).reshape([-1,self.d])
+        x_mat = np.array(self.x_window).reshape([-1,self.N])
         y_mat = np.array(self.y_window).reshape([-1,1])
         if update_D:
             self.D = np.linalg.pinv(x_mat.T @ x_mat)
@@ -152,34 +153,35 @@ class WindowSlow(OnlineRegresion):
         self.n_observed += 1
 
     def lazy_observe(self, x, y):
-        if self.n_observed >= self.init_min_ratio * self.d or self.D is not None:
+        if self.n_observed >= self.init_min_ratio * self.N or self.D is not None:
             self.update(x, y, update_D=True)
         else:
             self.update(x, y, update_D=False)
-            if self.n_observed >= self.init_min_ratio * self.d:
+            if self.n_observed >= self.init_min_ratio * self.N:
                 self.initialize()
 
     def predict(self, x):
         if self.D is None:
-            return np.nan
+            return np.nan * np.ones(shape=[self.n_obs,])
 
         w = self.D @ self.c
         return np.squeeze(x.T @ w)
 
 
 class WindowFast(OnlineRegresion):
-    def __init__(self, d,  window_size, init_min_ratio=3):
+    def __init__(self, N, n_out,  window_size, init_min_ratio=3):
         super().__init__()
 
         # core stuff
-        self.d = d
+        self.N = N
+        self.n_out = n_out
         self.window_size = window_size
 
         self.x_window = []
         self.y_window = []
         self.D = None
-        self.F = np.zeros([d, d])
-        self.c = np.zeros([d, 1])
+        self.F = np.zeros([N, N])
+        self.c = np.zeros([N, self.n_out])
 
         # initializations
         self.init_min_ratio = init_min_ratio
@@ -206,32 +208,32 @@ class WindowFast(OnlineRegresion):
                 self.D = rank_one_update_formula1(self.D, removed_x, -removed_x)
             else:
                 self.F -= removed_x @ removed_x.T
-            self.c -= removed_x @ removed_y.reshape([-1,1])
+            self.c -= removed_x @ removed_y.reshape([-1,self.n_out])
 
         self.x_window.append(x)
         self.y_window.append(y)
 
-        # update c and d
+        # update c and D
         if update_D:
             self.D = rank_one_update_formula1(self.D, x)
         else:
             self.F += x @ x.T
-        self.c += x @ y.reshape([-1,1])
+        self.c += x @ y.reshape([-1,self.n_out])
 
 
         self.n_observed += 1
 
     def lazy_observe(self, x, y):
-        if self.n_observed >= self.init_min_ratio * self.d or self.D is not None:
+        if self.n_observed >= self.init_min_ratio * self.N or self.D is not None:
             self.update(x, y, update_D=True)
         else:
             self.update(x, y, update_D=False)
-            if self.n_observed >= self.init_min_ratio * self.d:
+            if self.n_observed >= self.init_min_ratio * self.N:
                 self.initialize()
 
     def predict(self, x):
         if self.D is None:
-            return np.nan
+            return np.nan * np.ones(shape=[self.n_obs,])
 
         w = self.D @ self.c
         return np.squeeze(x.T @ w)
@@ -262,8 +264,8 @@ if __name__ == '__main__':
         X[i,:] = rng.normal(size=5)
     y = X @ w
 
-    r1 = WindowFast(d=n, window_size=50)
-    r2 = WindowSlow(d=n, window_size=50)
+    r1 = WindowFast(N=n, window_size=50)
+    r2 = WindowSlow(N=n, window_size=50)
     for i in range(m):
         r1.lazy_observe(x=X[i], y=y[i])
         r2.lazy_observe(x=X[i], y=y[i])
