@@ -14,6 +14,7 @@ from regressions import WindowFast, SymmetricNoisy
 import warnings
 
 
+
 epsilon = 1e-10
 
 class Bubblewrap():
@@ -116,22 +117,7 @@ class Bubblewrap():
         self.L_lower = np.tril(self.L,-1)        
         self.sigma_orig = fullSigma[0]
 
-
-
-        ## Set up gradients
-        ## Change grad to value_and_grad if we want Q values
-        self.grad_all = jit(vmap(jit(grad(Q_j, argnums=(0,1,2,3))), in_axes=(0,0,0,0,0,0,0,0,0,None,None,None,None,0)))
-
-        ## Other jitted functions
-        self.logB_jax = jit(vmap(single_logB, in_axes=(None, 0, 0, 0)))
-        self.expB_jax = jit(expB)
-        self.update_internal_jax = jit(update_internal)
-        self.kill_nodes = jit(kill_dead_nodes)
-        self.pred_ahead = jit(pred_ahead, static_argnames=['steps_ahead'])
-        self.sum_me = jit(sum_me)
-        self.compute_L = jit(vmap(get_L, (0,0)))
-        self.get_amax = jit(amax)
-        self.get_entropy = jit(entropy, static_argnames=['steps_ahead'])
+        self._add_jited_functions()
 
         ## for adam gradients
         self.m_mu = np.zeros_like(self.mu)
@@ -172,6 +158,22 @@ class Bubblewrap():
         self.loss = []
 
         self.t = 1
+
+    def _add_jited_functions(self):
+        ## Set up gradients
+        ## Change grad to value_and_grad if we want Q values
+        self.grad_all = jit(vmap(jit(grad(Q_j, argnums=(0,1,2,3))), in_axes=(0,0,0,0,0,0,0,0,0,None,None,None,None,0)))
+
+        ## Other jitted functions
+        self.logB_jax = jit(vmap(single_logB, in_axes=(None, 0, 0, 0)))
+        self.expB_jax = jit(expB)
+        self.update_internal_jax = jit(update_internal)
+        self.kill_nodes = jit(kill_dead_nodes)
+        self.pred_ahead = jit(pred_ahead, static_argnames=['steps_ahead'])
+        self.sum_me = jit(sum_me)
+        self.compute_L = jit(vmap(get_L, (0,0)))
+        self.get_amax = jit(amax)
+        self.get_entropy = jit(entropy, static_argnames=['steps_ahead'])
 
 
     def observe(self, x, behavior=None):
@@ -215,7 +217,7 @@ class Bubblewrap():
             new_ent = []
 
             for idx, step in enumerate(self.lookahead_steps):
-                if step in future_observations:
+                if future_observations and step in future_observations:
                     # todo: special case for `step == 1`
                     new_pred.append(self.pred_ahead(self.logB_jax(future_observations[step], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
                 else:
@@ -327,6 +329,23 @@ class Bubblewrap():
         self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
+    def __getstate__(self):
+        to_save = {}
+        _pickle_changes = []
+        for key, value in self.__dict__.items():
+            if callable(value) and "jit" in str(value):
+                _pickle_changes.append((key, "callable"))
+                continue
+            else:
+                to_save[key] = value
+
+        to_save["_pickle_changes"] = _pickle_changes
+        return to_save
+
+    def __setstate__(self, state):
+        del state["_pickle_changes"]
+        self.__dict__.update(state)
+        self._add_jited_functions()
 
 beta1 = 0.99
 beta2 = 0.999
