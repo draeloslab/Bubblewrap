@@ -1,6 +1,7 @@
 import os
 # os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
+
 import time
 import numpy as np
 
@@ -8,6 +9,11 @@ import matplotlib
 import matplotlib.pylab as plt
 from matplotlib.animation import FFMpegFileWriter
 
+# # TODO: update environment.yml
+# # TODO: on the ubuntu machine, this import is broken
+# # I fixed it by putting the project root directory in $PYTHONPATH
+# import sys
+# print(sys.path)
 from bubblewrap import Bubblewrap
 from plot_2d_3d import plot_2d, plot_A_differences, plot_current_2d
 from bubblewrap_run import BubblewrapRun
