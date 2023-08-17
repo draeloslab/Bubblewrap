@@ -7,6 +7,7 @@ name = "bubblewrap"
 version = "0.0.1"
 description = "Methods for real-time prediction of latent neural dynamics"
 authors = [{name = "Anne Draelos"},
+           {name = "Jonathan Gould"},
            {name = "Pranjal Gupta"},
            {name = "Na Young Jun"},
            {name = "Chaichontat Sriworarat"},
@@ -23,5 +24,9 @@ dependencies = [
     "tqdm",
 ]
 
+
 [tool.setuptools]
-py-modules = ["bubblewrap"]
+packages = ["bubblewrap"]
+
+[tool.distutils.egg_info]
+egg_base = "dist"
