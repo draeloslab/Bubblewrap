@@ -1,7 +1,3 @@
-import os
-# os.environ['CUDA_VISIBLE_DEVICES'] = "0"
-
-
 import time
 import numpy as np
 
@@ -9,16 +5,11 @@ import matplotlib
 import matplotlib.pylab as plt
 from matplotlib.animation import FFMpegFileWriter
 
-# # TODO: update environment.yml
-# # TODO: on the ubuntu machine, this import is broken
-# # I fixed it by putting the project root directory in $PYTHONPATH
-# import sys
-# print(sys.path)
-from bubblewrap import Bubblewrap
-from plot_2d_3d import plot_2d, plot_A_differences, plot_current_2d
-from bubblewrap_run import BubblewrapRun
+from bubblewrap import Bubblewrap, BWRun
+from bubblewrap.default_parameters import default_clock_parameters, default_rwd_parameters
+from bubblewrap.plotting_functions import plot_2d, plot_A_differences, plot_current_2d, show_bubbles, show_behavior_variables, show_alpha
 
-from math import atan2, floor
+from math import floor
 from tqdm import tqdm
 
 import os
@@ -26,211 +17,6 @@ if os.environ.get("display") is not None:
     matplotlib.use('QtAgg')
 
 
-# ## Parameters
-# N = 1000             # number of nodes to tile with
-# lam = 1e-3          # lambda 
-# nu = 1e-3           # nu
-# eps = 1e-3          # epsilon sets data forgetting
-# step = 8e-2         # for adam gradients
-# M = 30              # small set of data seen for initialization
-# B_thresh = -10      # threshold for when to teleport (log scale)    
-# batch = False       # run in batch mode 
-# batch_size = 1      # batch mode size; if not batch is 1
-# go_fast = False     # flag to skip computing priors, predictions, and entropy for optimal speed
-
-default_rwd_parameters = dict(
-    num=200,
-    lam=1e-3,
-    nu=1e-3,
-    eps=1e-3,
-    step=8e-2,
-    M=30,
-    B_thresh=-10,
-    batch=False,
-    batch_size=1,
-    go_fast=False,
-    lookahead_steps=[1, 2, 5, 10],
-    seed=42,
-    save_A=False,
-    balance=1,
-    beh_reg_constant_term=True
-)
-
-default_clock_parameters = dict(
-    num=8,
-    lam=1e-3,
-    nu=1e-3,
-    eps=1e-4,
-    step=8e-2,
-    M=100,
-    B_thresh=-5,
-    batch=False,
-    batch_size=1,
-    go_fast=False,
-    lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 30, 50],
-    seed=42,
-    save_A=False,
-    balance=1,
-    beh_reg_constant_term=True
-)
-
-def show_bubbles(ax, data, bw, params, step, i, keep_every_nth_frame):
-    ax.cla()
-
-    d = data[0:i+params["M"]+step]
-    plot_2d(ax, d, bw)
-
-    d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
-    ax.plot(d[:,0], d[:,1], 'k.')
-    ax.set_title(f"Observation Model (Bubbles) (i={i})")
-    ax.set_xlabel("neuron 1")
-    ax.set_ylabel("neuron 2")
-
-
-def show_inhabited_bubbles(ax, data, bw, params, step, i, keep_every_nth_frame):
-    ax.cla()
-
-    d = data[0:i+params["M"]+step]
-    plot_current_2d(ax, d, bw)
-
-    d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
-    ax.set_title(f"Currrent Bubbles (i={i})")
-    ax.set_xlabel("neuron 1")
-    ax.set_ylabel("neuron 2")
-
-def show_A(ax, bw):
-    ax.cla()
-    ims = ax.imshow(bw.A, aspect='equal', interpolation='nearest')
-
-    ax.set_title("Transition Matrix (A)")
-    ax.set_xlabel("To")
-    ax.set_ylabel("From")
-
-    ax.set_xticks(np.arange(bw.N))
-    live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
-    ax.set_yticks(live_nodes)
-
-def show_D(ax, bw):
-    ax.cla()
-    ims = ax.imshow(bw.D, aspect='equal', interpolation='nearest')
-    ax.set_title("D")
-
-def show_Ct_y(ax, bw):
-    old_ylim = ax.get_ylim()
-    ax.cla()
-    ax.plot(bw.Ct_y, '.-')
-    ax.set_title("Ct_y")
-
-    new_ylim = ax.get_ylim()
-    ax.set_ylim([min(old_ylim[0], new_ylim[0]), max(old_ylim[1], new_ylim[1])])
-
-
-def show_alpha(ax, bw):
-    ax.cla()
-    ims = ax.imshow(np.array(bw.alpha_list[-19:] + [bw.alpha]).T, aspect='auto', interpolation='nearest')
-
-    ax.set_title("State Estimate ($\\alpha$)")
-    live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
-    ax.set_yticks(live_nodes)
-    ax.set_ylabel("bubble")
-    ax.set_xlabel("steps (ago)")
-    # ax.set_xticks([0.5,5,10,15,20])
-    # ax.set_xticklabels([-20, -15, -10, -5, 0])
-def show_behavior_variables(ax, bw, obs):
-    ax.cla()
-    ax.plot(bw.beh_list[-20:])
-    ax.plot(obs[-20:])
-    ax.set_ylim([-21,21])
-    ax.set_title("Behavior prediction")
-
-def show_A_eigenspectrum(ax, bw):
-    ax.cla()
-    eig = np.sort(np.linalg.eigvals(bw.A))[::-1]
-    ax.plot(eig, '.')
-    ax.set_title("Eigenspectrum of A")
-    ax.set_ylim([0,1])
-
-# TODO: remove this?
-def mean_distance(data, shift=1):
-    x = data - data.mean(axis=0)
-    T = x.shape[0]
-
-    differences = x[0:T - shift] - x[shift:T]
-    distances = np.linalg.norm(differences, axis=1)
-
-    return distances.mean()
-
-def show_data_distance(ax, data, end_of_block, max_step=50):
-    old_ylim = ax.get_ylim()
-    ax.cla()
-    start = max(end_of_block-3*max_step, 0)
-    d = data[start:end_of_block]
-    if d.shape[0] > 10:
-        shifts = np.arange(0,min(d.shape[0]//2, max_step))
-        distances = [mean_distance(d, shift) for shift in shifts]
-        ax.plot(shifts, distances)
-    ax.set_xlim([0,max_step])
-    new_ylim = ax.get_ylim()
-    ax.set_ylim([0, max(old_ylim[1], new_ylim[1])])
-    ax.set_title(f"dataset[{start}:{end_of_block}] distances")
-    ax.set_xlabel("offset")
-    ax.set_ylabel("distance")
-
-def show_nstep_pred_pdf(ax, bw, data, current_index, other_axis, fig, n=0):
-    # vmin = np.inf
-    # vmax = -np.inf
-    if ax.collections:
-        vmax = ax.collections[-3].colorbar.vmax
-        vmin = ax.collections[-3].colorbar.vmin
-        ax.collections[-3].colorbar.remove()
-    ax.cla()
-    other_axis: plt.Axes
-
-    xlim = other_axis.get_xlim()
-    ylim = other_axis.get_ylim()
-    density = 50
-    x_bins = np.linspace(*xlim, density+1)
-    y_bins = np.linspace(*ylim, density+1)
-    pdf = np.zeros(shape=(density, density))
-    for i in range(density):
-        for j in range(density):
-            x = np.array([x_bins[i] + x_bins[i+1], y_bins[j] + y_bins[j+1]])/2
-            b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
-            pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A,n) @ np.exp(b_values)
-    # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=min(vmin, pdf.min()), vmax=max(vmax, pdf.max()))
-    # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=0, vmax=0.03) #log, vmin=-15, vmax=-5
-    cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T) #log, vmin=-15, vmax=-5
-    fig.colorbar(cmesh)
-    if current_index+n < data.shape[0]:
-            to_draw = data[current_index+n]
-            ax.scatter(to_draw[0], to_draw[1], c='red', alpha=.25)
-
-    to_draw = data[current_index]
-    ax.scatter(to_draw[0], to_draw[1], c='red')
-    ax.set_title(f"{n}-step pred. at t={current_index}")
-
-def show_w(ax,bw):
-    ax.cla()
-    ax.plot(bw.D@bw.Ct_y, '.-')
-    ax.set_ylim([-1.1, 1.1])
-    ax.set_xlabel("bubble #")
-    ax.set_ylabel("weight magnitude")
-
-def show_w_sideways(ax,bw, obs):
-    ax.cla()
-    w = np.array(bw.D @ bw.Ct_y)
-    w[bw.dead_nodes] = 0
-
-    a = np.array(bw.alpha)
-    a = a / np.max(a)
-    ax.plot(w, np.arange(w.size), alpha=0.25)
-    ax.scatter(w, np.arange(w.size), alpha=a, c="C0")
-    ylim = ax.get_ylim()
-    ax.vlines(obs[-1], alpha=.5, ymin=ylim[0], ymax=ylim[1], colors="C1" )
-    ax.set_ylabel("bubble #")
-    ax.set_xlabel("weight magnitude")
-    ax.set_title(r"Weights (times $\alpha$)")
-    ax.set_xlim([-21, 21])
 
 def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None, tiles=1, movie_range=None,  invert_alternate_behavior=False, fps=20, behavior_shift=1, data_transform="n"):
     """this runs bubblewrap; it also generates a movie if `keep_every_nth_frame` is not None"""
@@ -245,38 +31,38 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
     else:
         moviewriter = None
 
-    s = np.load(file)
+    # s = np.load(file)
+    #
+    # if "npy" in file:
+    #     data = s.T
+    # elif "npz" in file:
+    #     data = s['y'][0]
+    #     pre_obs = s['x']
+    #
+    #     data = np.tile(data, reps=(tiles,1))
+    #     obs = pre_obs
+    #     for i in range(1,tiles):
+    #         c = (-1)**i if invert_alternate_behavior else 1
+    #         obs = np.hstack((obs, pre_obs*c))
+    # else:
+    #     raise Exception("Unknown file extension.")
+    #
+    #
+    # obs = obs.reshape((-1,1))
+    # old_data = np.array(data)
+    # old_obs = np.array(obs)
 
-    if "npy" in file:
-        data = s.T
-    elif "npz" in file:
-        data = s['y'][0]
-        pre_obs = s['x']
-
-        data = np.tile(data, reps=(tiles,1))
-        obs = pre_obs
-        for i in range(1,tiles):
-            c = (-1)**i if invert_alternate_behavior else 1
-            obs = np.hstack((obs, pre_obs*c))
-    else:
-        raise Exception("Unknown file extension.")
-
-
-    obs = obs.reshape((-1,1))
-    old_data = np.array(data)
-    old_obs = np.array(obs)
-
-    if data_transform == "n,b":
-        data = np.hstack([data, obs])
-    elif data_transform == "n":
-        data = np.hstack([data])
-    elif data_transform == "b":
-        data = np.hstack([obs])
-    else:
-        raise Exception("You need to set data_transform")
-
-
-    obs = np.hstack([old_data,old_obs])
+    # if data_transform == "n,b":
+    #     data = np.hstack([data, obs])
+    # elif data_transform == "n":
+    #     data = np.hstack([data])
+    # elif data_transform == "b":
+    #     data = np.hstack([obs])
+    # else:
+    #     raise Exception("You need to set data_transform")
+    #
+    #
+    # obs = np.hstack([old_data,old_obs])
 
 
     T = data.shape[0]       # should be big (like 20k)
@@ -391,13 +177,13 @@ def plot_bubblewrap_results(bw, running_average_length=500):
 
 def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
     bw, _, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=True, end=end)
-    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br = BWRun(bw, file=file, bw_parameters=parameters)
     br.save()
     old_file = br.outfile
     del br
 
     bw, moviewriter, _ = run_bubblewrap(file, parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
-    br = BubblewrapRun(bw, file=file, bw_parameters=parameters)
+    br = BWRun(bw, file=file, bw_parameters=parameters)
     br.save()
     new_file = br.outfile
     del br
@@ -407,7 +193,7 @@ def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
         shuffle_file[-1] ="shuffled_" + shuffle_file[-1]
         shuffle_file = "/".join(shuffle_file)
         bw, moviewriter, time_spent = run_bubblewrap(shuffle_file, parameters, keep_every_nth_frame=None, do_it_old_way=False, end=end)
-        br = BubblewrapRun(bw, file=shuffle_file, bw_parameters=parameters)
+        br = BWRun(bw, file=shuffle_file, bw_parameters=parameters)
         br.save()
         s_file = br.outfile
         del br
@@ -422,7 +208,7 @@ def compare_old_and_new_ways(file, parameters, end=None, shuffle=True):
 def simple_run(file, parameters, **kwargs):
     bw, moviewriter, time_spent = run_bubblewrap(file, parameters, **kwargs)
     # plot_bubblewrap_results(bw)
-    br = BubblewrapRun(bw, file=file, bw_parameters=parameters, time_to_run=time_spent)
+    br = BWRun(bw, file=file, bw_parameters=parameters, time_to_run=time_spent)
     br.save()
 
     if moviewriter is not None:

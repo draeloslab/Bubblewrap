@@ -10,7 +10,7 @@ from scipy.stats import multivariate_normal as mvn
 from jax.scipy.special import logsumexp as lse
 from jax import nn, random
 from functools import partial
-from regressions import WindowFast, SymmetricNoisy
+from .regressions import WindowFast, SymmetricNoisy
 import warnings
 
 
