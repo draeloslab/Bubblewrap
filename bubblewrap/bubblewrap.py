@@ -1,16 +1,10 @@
 import numpy
 import jax.numpy as np
-from math import floor
 import time
 from collections import deque
-from jax import jit, grad, vmap, value_and_grad
-import jax.scipy.stats
-from jax.scipy.stats import multivariate_normal as jmvn
-from scipy.stats import multivariate_normal as mvn
-from jax.scipy.special import logsumexp as lse
+from jax import jit, grad, vmap
 from jax import nn, random
-from functools import partial
-from .regressions import WindowFast, SymmetricNoisy
+from regressions import WindowFast, SymmetricNoisy
 import warnings
 
 
@@ -26,6 +20,7 @@ class Bubblewrap():
         self.lam_0 = lam
         self.nu = nu
         self.balance = balance
+        self.M = M
 
         self.eps = eps
         self.B_thresh = B_thresh
@@ -136,28 +131,26 @@ class Bubblewrap():
         self.current_node = 0 
     
         ## Variables for tracking progress
-        self.teleported_times = []
-        self.time_em = []
-        self.time_observe = []
-        self.time_updates = []
-        self.time_grad_Q = []
-        self.time_pred = []
+        # self.teleported_times = []
+        # self.time_em = []
+        # self.time_observe = []
+        # self.time_updates = []
+        # self.time_grad_Q = []
+        # self.time_pred = []
         self.entropy_list = []
         self.pred_list = []
-        self.beh_error_list = []
-        self.beh_regr_list = []
-        self.beh_list = []
+        # self.beh_error_list = []
+        # self.beh_regr_list = []
+        # self.beh_list = []
 
-        #TODO: n_bheaviors as an argument
-        n_behaviors = 2
-        # self.beh_counts = numpy.zeros(shape=(self.N,n_behaviors))
+
         self.alpha_list = []
         self.n_living_list = []
         self.w_list = []
         self.A_list = []
         self.loss = []
 
-        self.t = 1
+        self.t = 1 # todo: what is this doing in ADAM?
 
     def _add_jited_functions(self):
         ## Set up gradients
@@ -206,9 +199,6 @@ class Bubblewrap():
 
     def single_e_step(self, x, future_observations=None, do_it_old_way=False):
 
-        self.beta = 1 + 10/(self.t+1)
-
-        self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
 
         ### Compute log predictive probability and entropy; turn off for faster code 
         if not self.go_fast:
@@ -234,6 +224,9 @@ class Bubblewrap():
                 warnings.warn("This is saving A for all timesteps; if A is big, this can take a lot of space.")
                 self.A_list.append(np.array(self.A))
 
+        self.beta = 1 + 10/(self.t+1)
+
+        self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
 
         self.update_B(x)
 

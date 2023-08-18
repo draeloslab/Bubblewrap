@@ -18,57 +18,12 @@ if os.environ.get("display") is not None:
 
 
 
-def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False, end=None, tiles=1, movie_range=None,  invert_alternate_behavior=False, fps=20, behavior_shift=1, data_transform="n"):
+def run_bubblewrap(data, params, keep_every_nth_frame=None, do_it_old_way=False, end=None, tiles=1, movie_range=None,  invert_alternate_behavior=False, fps=20, behavior_shift=1, data_transform="n"):
     """this runs bubblewrap; it also generates a movie if `keep_every_nth_frame` is not None"""
 
+    T = data.shape[0] # should be big (like 20k)
+    d = data.shape[1] # should be small-ish (like 6)
 
-    if keep_every_nth_frame is not None:
-        fig, ax = plt.subplots(2, 2, figsize=(10,10), layout='tight')
-        # fig, ax = plt.subplots(1, 2, figsize=(10,7), layout='tight')
-
-        moviewriter = FFMpegFileWriter(fps=fps)
-        moviewriter.setup(fig, "generated/movie.mp4", dpi=100)
-    else:
-        moviewriter = None
-
-    # s = np.load(file)
-    #
-    # if "npy" in file:
-    #     data = s.T
-    # elif "npz" in file:
-    #     data = s['y'][0]
-    #     pre_obs = s['x']
-    #
-    #     data = np.tile(data, reps=(tiles,1))
-    #     obs = pre_obs
-    #     for i in range(1,tiles):
-    #         c = (-1)**i if invert_alternate_behavior else 1
-    #         obs = np.hstack((obs, pre_obs*c))
-    # else:
-    #     raise Exception("Unknown file extension.")
-    #
-    #
-    # obs = obs.reshape((-1,1))
-    # old_data = np.array(data)
-    # old_obs = np.array(obs)
-
-    # if data_transform == "n,b":
-    #     data = np.hstack([data, obs])
-    # elif data_transform == "n":
-    #     data = np.hstack([data])
-    # elif data_transform == "b":
-    #     data = np.hstack([obs])
-    # else:
-    #     raise Exception("You need to set data_transform")
-    #
-    #
-    # obs = np.hstack([old_data,old_obs])
-
-
-    T = data.shape[0]       # should be big (like 20k)
-    d = data.shape[1]       # should be small-ish (like 6)
-
-    start = time.time()
     #todo:fix this
     params["behavior_shift"] = behavior_shift
     bw = Bubblewrap(d, beh_dim=obs.shape[1], **params)
@@ -97,28 +52,9 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
     step = params["batch_size"]
 
     # Initialize things
-    for i in np.arange(0, params["M"], step):
-        if params["batch"]:
-            bw.observe(data[i:i+step])
-        else:
-            bw.observe(data[i])
-    bw.init_nodes()
 
     # Run online, 1 data or batch at a time
     for i in tqdm(np.arange(init, end, step)):
-        start_of_block = i+params["M"]
-        end_of_block = i+params["M"]+step
-        bw.observe(data[start_of_block:end_of_block], obs[start_of_block+behavior_shift:end_of_block+behavior_shift])
-        # if i > 800:
-        # else:
-        #     bw.observe(data[start_of_block:end_of_block], np.nan * obs[start_of_block+behavior_shift:end_of_block+behavior_shift])
-        last_seen = end_of_block - 1
-
-        future_observations = {}
-        for x in bw.lookahead_steps:
-            if (end_of_block - 1) + (x - 1) < T:
-                future_observations[x] = data[(end_of_block - 1) + (x - 1)]
-
         bw.e_step(future_observations)
         bw.grad_Q()
 
@@ -138,7 +74,6 @@ def run_bubblewrap(file, params, keep_every_nth_frame=None, do_it_old_way=False,
                     # show_A_eigenspectrum(ax[1], bw)
 
 
-                    moviewriter.grab_frame()
     end = time.time()
     if keep_every_nth_frame is not None:
         moviewriter.finish()
