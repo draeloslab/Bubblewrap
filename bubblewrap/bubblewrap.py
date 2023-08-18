@@ -4,53 +4,41 @@ import time
 from collections import deque
 from jax import jit, grad, vmap
 from jax import nn, random
-from regressions import WindowFast, SymmetricNoisy
-import warnings
+from .regressions import WindowFast, SymmetricNoisy
 
 
-
+# todo: make this a parameter
 epsilon = 1e-10
 
 class Bubblewrap():
-    def __init__(self, dim, beh_dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, t_wait=1, batch=False, batch_size=1, lookahead_steps=(1,), go_fast = False, save_A=False, balance=1, beh_reg_constant_term=False, behavior_shift=0):
+    def __init__(self, dim, beh_dim=False, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, batch=False, batch_size=1, go_fast=False):
         self.N = num            # Number of nodes
         self.d = dim            # dimension of the space
-        self.b_d = beh_dim # todo: make this a force option?
+        self.beh_dim = beh_dim
         self.seed = seed
         self.lam_0 = lam
         self.nu = nu
-        self.balance = balance
         self.M = M
 
         self.eps = eps
         self.B_thresh = B_thresh
         self.n_thresh = n_thresh
-        self.t_wait = t_wait
         self.step = step
 
         self.batch = batch
         self.batch_size = batch_size
         if not self.batch: self.batch_size = 1
 
+        # todo: make this a parameter or remove
         self.printing = False
 
-        if type(lookahead_steps) == int:
-            self.lookahead_steps = (lookahead_steps,)
-        else:
-            self.lookahead_steps = lookahead_steps
-
         self.go_fast = go_fast
-        self.save_A = save_A
-        self.beh_reg_constant_term = beh_reg_constant_term
-        self.behavior_shift = behavior_shift
-        self.time_spent_on_w = 0
 
         self.key = random.PRNGKey(self.seed)
         numpy.random.seed(self.seed)
 
-        # regressor object
-        # self.regressor = WindowFast(self.N, beh_dim, window_size=100)
-        self.regressor = SymmetricNoisy(self.N, beh_dim, forgetting_factor=1-(1e-2), noise_scale=1e-5)
+        if self.beh_dim:
+            self.regressor = SymmetricNoisy(self.N, beh_dim, forgetting_factor=1-(1e-2), noise_scale=1e-5)
 
         # observations of the data; M is how many to keep in history
         if self.batch: M=self.batch_size
@@ -129,26 +117,6 @@ class Bubblewrap():
         self.dead_nodes = np.arange(0,self.N).tolist()
         self.dead_nodes_ind = self.n_thresh*numpy.ones(self.N)
         self.current_node = 0 
-    
-        ## Variables for tracking progress
-        # self.teleported_times = []
-        # self.time_em = []
-        # self.time_observe = []
-        # self.time_updates = []
-        # self.time_grad_Q = []
-        # self.time_pred = []
-        self.entropy_list = []
-        self.pred_list = []
-        # self.beh_error_list = []
-        # self.beh_regr_list = []
-        # self.beh_list = []
-
-
-        self.alpha_list = []
-        self.n_living_list = []
-        self.w_list = []
-        self.A_list = []
-        self.loss = []
 
         self.t = 1 # todo: what is this doing in ADAM?
 
@@ -170,7 +138,6 @@ class Bubblewrap():
 
 
     def observe(self, x, behavior=None):
-        # TODO: force you to always or never give behavior
         # Get new data point and update observation history
 
         ## Do all observations, and then update mu0, sigma0
@@ -188,87 +155,45 @@ class Bubblewrap():
             self.sigma_orig = self.obs.cov * (self.nu + self.d + 1) / (self.N**(2/self.d))   
          
 
-    def e_step(self, future_observations=None):
+    def e_step(self):
         # take E step; after observation
         if self.batch:
             for index, o in enumerate(self.obs.saved_obs):
-                self.single_e_step(o, future_observations=future_observations[index])
+                self.single_e_step(o)
         else:
-            self.single_e_step(self.obs.curr, future_observations=future_observations)
+            self.single_e_step(self.obs.curr)
 
 
-    def single_e_step(self, x, future_observations=None, do_it_old_way=False):
-
-
-        ### Compute log predictive probability and entropy; turn off for faster code 
-        if not self.go_fast:
-
-            new_pred = []
-            new_ent = []
-
-            for idx, step in enumerate(self.lookahead_steps):
-                if future_observations and step in future_observations:
-                    # todo: special case for `step == 1`
-                    new_pred.append(self.pred_ahead(self.logB_jax(future_observations[step], self.mu, self.L, self.L_diag), self.A, self.alpha, step))
-                else:
-                    new_pred.append(np.nan)
-
-                new_ent.append(self.get_entropy(self.A, self.alpha, step))
-
-
-            self.pred_list.append(new_pred)
-            self.entropy_list.append(new_ent)
-            self.alpha_list.append(np.array(self.alpha))
-            self.n_living_list.append(self.N - len(self.dead_nodes))
-            if self.save_A:
-                warnings.warn("This is saving A for all timesteps; if A is big, this can take a lot of space.")
-                self.A_list.append(np.array(self.A))
-
+    def single_e_step(self, x):
         self.beta = 1 + 10/(self.t+1)
-
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
-
         self.update_B(x)
-
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B, self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
 
-
-        b = self.obs.saved_behavior[-1][0] if len(self.obs.saved_behavior) else numpy.nan
-        if not numpy.any(numpy.isnan(b)):
-            start = time.time()
-            self.regressor.lazy_observe(numpy.array(self.alpha),b)
-
-            alpha_ahead = numpy.array(self.alpha @ numpy.linalg.matrix_power(self.A, self.behavior_shift)).reshape(-1,1)
-            behavior_prediction = self.regressor.predict(alpha_ahead)
-            self.beh_list.append(behavior_prediction)
-            self.beh_error_list.append((b - behavior_prediction) ** 2)
+        if self.beh_dim:
+            b = self.obs.saved_behavior[-1]
+            if not numpy.any(numpy.isnan(b)):
+                self.regressor.lazy_observe(numpy.array(self.alpha),b)
 
         self.t += 1
 
 
     def update_B(self, x):
-        
         if np.max(self.B) < self.B_thresh:
             if not (self.dead_nodes):
                 target = numpy.argmin(self.n_obs)
-
                 if self.printing:
                     print('-------------- killing a node: ', target)
-
                 n_obs = numpy.array(self.n_obs)
                 n_obs[target] = 0
                 self.n_obs = n_obs
-
                 self.remove_dead_nodes()
-
             node = self.teleport_node(x)
             self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
-
         self.current_node, self.B = self.expB_jax(self.B)
 
 
     def remove_dead_nodes(self):
-
         ma = (self.n_obs + self.dead_nodes_ind) < self.n_thresh
 
         if ma.any():

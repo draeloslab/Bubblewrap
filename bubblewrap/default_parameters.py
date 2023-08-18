@@ -21,11 +21,7 @@ default_rwd_parameters = dict(
     batch=False,
     batch_size=1,
     go_fast=False,
-    lookahead_steps=[1, 2, 5, 10],
     seed=42,
-    save_A=False,
-    balance=1,
-    beh_reg_constant_term=True
 )
 
 default_clock_parameters = dict(
@@ -39,11 +35,7 @@ default_clock_parameters = dict(
     batch=False,
     batch_size=1,
     go_fast=False,
-    lookahead_steps=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 30, 50],
     seed=42,
-    save_A=False,
-    balance=1,
-    beh_reg_constant_term=True
 )
 
 # reasonable_parameter_ranges = dict(
