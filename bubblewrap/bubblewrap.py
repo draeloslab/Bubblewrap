@@ -36,6 +36,7 @@ class Bubblewrap():
 
         self.key = random.PRNGKey(self.seed)
         numpy.random.seed(self.seed)
+        # TODO: change this to use the `rng` system
 
         if self.beh_dim:
             self.regressor = SymmetricNoisy(self.N, beh_dim, forgetting_factor=1-(1e-2), noise_scale=1e-5)
@@ -45,6 +46,8 @@ class Bubblewrap():
         self.obs = Observations(self.d, M=M, go_fast=go_fast)
         self.get_mus0 = jit(vmap(get_mus, 0))
         self.mu_orig = None
+
+        self.frozen = False
 
     def init_nodes(self):
         ### Based on observed data so far of length M
@@ -158,13 +161,14 @@ class Bubblewrap():
     def e_step(self):
         # take E step; after observation
         if self.batch:
-            for index, o in enumerate(self.obs.saved_obs):
+            for o in self.obs.saved_obs:
                 self.single_e_step(o)
         else:
             self.single_e_step(self.obs.curr)
 
 
     def single_e_step(self, x):
+        # todo: this needs to take behavior as an input to work with the batch API
         self.beta = 1 + 10/(self.t+1)
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
         self.update_B(x)
@@ -247,6 +251,10 @@ class Bubblewrap():
         self.m_L_diag, self.v_L_diag, self.L_diag = single_adam(self.step, self.m_L_diag, self.v_L_diag, L_diag, self.t, self.L_diag)
         self.m_A, self.v_A, self.log_A = single_adam(self.step, self.m_A, self.v_A, A, self.t, self.log_A)
 
+    def freeze(self):
+        self.frozen = True
+        self.obs.freeze()
+
     def __getstate__(self):
         to_save = {}
         _pickle_changes = []
@@ -254,6 +262,10 @@ class Bubblewrap():
             if callable(value) and "jit" in str(value):
                 _pickle_changes.append((key, "callable"))
                 continue
+
+            elif self.frozen and "jax" in str(type(value)) and "Array" in str(type(value)):
+                to_save[key] = np.array(value)
+                _pickle_changes.append((key, "unjaxed"))
             else:
                 to_save[key] = value
 
@@ -263,7 +275,8 @@ class Bubblewrap():
     def __setstate__(self, state):
         del state["_pickle_changes"]
         self.__dict__.update(state)
-        self._add_jited_functions()
+        if not state["frozen"]:
+            self._add_jited_functions()
 
 beta1 = 0.99
 beta2 = 0.999
@@ -420,6 +433,11 @@ class Observations:
                     self.cov = np.cov(np.array(self.saved_obs).T, bias=True)
                 else:
                     self.cov = update_cov(self.cov, self.last_mean, self.curr, self.mean, self.n_obs)
+
+    def freeze(self):
+        self.curr = np.array(self.curr)
+        self.last_mean = np.array(self.last_mean)
+        self.mean = np.array(self.mean)
 
 
 @jit 

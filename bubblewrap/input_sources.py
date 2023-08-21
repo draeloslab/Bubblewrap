@@ -68,6 +68,13 @@ class NumpyDataSource:
 
                 yield o, b, offset_pairs
 
+    def __getitem__(self, item):
+        if self.beh is not None:
+            return self.obs[item,:], self.beh[item,:]
+        else:
+            return self.obs[item,:]
+
+
     def get_pair_shapes(self):
         if self.beh is not None:
             return self.obs.shape[1], self.beh.shape[1]

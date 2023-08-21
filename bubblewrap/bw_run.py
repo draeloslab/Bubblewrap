@@ -38,7 +38,6 @@ class BWRun:
         if self.animation_parameters is not None:
             self.start_animation()
 
-        # todo: check initial dimensions
         for step, (obs, beh, offset_pairs) in enumerate(tqdm(self.data_source)):
 
             self.bw.observe(obs, beh)
@@ -57,6 +56,33 @@ class BWRun:
         if self.animation_parameters is not None:
             self.finish_animation()
 
+    def _run_all_data(self):
+        if self.animation_parameters is not None:
+            self.start_animation()
+
+        for i in range(self.bw.M):
+            obs, beh = self.data_source[i]
+            self.bw.observe(obs, beh)
+
+        self.bw.init_nodes()
+
+        for i in range(len(self.data_source)):
+            obs, beh = self.data_source[i]
+
+            offset_pairs = {}
+            for offset in self.data_source.time_offsets:
+                offset_pairs[offset] = self.data_source[i + offset]
+
+            self.bw.observe(obs, beh)
+
+            self.log_for_step(i, offset_pairs)
+            self.bw.e_step()
+            self.bw.grad_Q()
+
+
+
+        if self.animation_parameters is not None:
+            self.finish_animation()
     def log_for_step(self, step, offset_pairs):
         # TODO: allow skipping of (e.g. entropy) steps?
         for offset, (o, b) in offset_pairs.items():
@@ -94,8 +120,27 @@ class BWRun:
     def finish_animation(self):
         pass
 
-    def save(self, directory="generated/bubblewrap_runs"):
+    def finish_and_remove_jax(self):
+        def convert_dict(d):
+            return {k:np.array(v) for k, v in d.items()}
+
+        self.prediction_history = convert_dict(self.prediction_history)
+        self.entropy_history = convert_dict(self.entropy_history)
+        self.behavior_pred_history = convert_dict(self.behavior_pred_history)
+
+        self.alpha_history = np.array(self.alpha_history)
+        self.n_living_history = np.array(self.n_living_history)
+        if self.save_A:
+            self.A_history = np.array(self.A_history)
+
+        self.bw.freeze()
+
+
+    def save(self, directory="generated/bubblewrap_runs", freeze=True):
+        self.finish_and_remove_jax()
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         self.outfile = os.path.join(directory, f"bubblewrap_run_{time_string}.pickle")
         with open(self.outfile, "wb") as fhan:
+            # todo: remove this, it's just to make the comparison fair
+            del self.data_source
             pickle.dump(self, fhan)
