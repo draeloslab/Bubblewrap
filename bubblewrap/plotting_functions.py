@@ -324,6 +324,90 @@ def show_w_sideways(ax,bw, obs):
     ax.set_xlim([-21, 21])
 
 
+def one_sided_ewma(data, com=100):
+    import pandas as pd
+    return pd.DataFrame(data=dict(data=data)).ewm(com).mean()["data"]
+
+
+def compare_metrics(brs):
+    # ps = [br.bw_parameters for br in brs]
+    # keys = set([leaf for tree in ps for leaf in tree.keys()])
+    # keep_keys = []
+    # for key in keys:
+    #     values = [d.get(key) for d in ps]
+    #     if not all([values[0] == v for v in values]):
+    #         keep_keys.append(key)
+    # to_print = []
+    # for key in keep_keys:
+    #     to_print.append(f"{key}: {[p.get(key) for p in ps]}")
+    #
+    # for p in to_print:
+    #     print(p)
+
+    fig, ax = plt.subplots(figsize=(12, 5), nrows=3, ncols=1, sharex=True, layout='tight')
+    to_write = [[], [], []]
+
+    smooting_scale = 100
+    n = 0
+    for idx, br in enumerate(brs):
+        n = max(n, br.entropy_list.shape[0])
+
+        xlim = np.array([-0.01 * n, n])
+        xlim[1] *= 1.07
+
+        # predictions = br.pred_list[br.bw_parameters["M"]+1:,0]
+        predictions = br.pred_list[:, 0]
+        smoothed_predictions = one_sided_ewma(predictions, smooting_scale)
+
+        ax[0].plot(predictions, alpha=0.25, color='blue')
+        c = 'black' if idx == 0 else 'blue'
+        ax[0].plot(smoothed_predictions, color=c, label=br.outfile.split("/")[-1].split(".")[0].split("_")[-1])
+        # ax[0].tick_params(axis='y',labelcolor='blue')
+        # ax[0].text(1800,-12-2*idx,f"~{smoothed_predictions[smoothed_predictions.shape[0]//2:].mean():.2f}", color=c)
+        ax[0].set_ylabel('prediction')
+        to_write[0].append((idx, f"{predictions[n // 2:].mean():.3f}", dict(color=c)))
+
+        entropy = br.entropy_list[:, 0]
+        smoothed_entropy = one_sided_ewma(entropy, smooting_scale)
+        ax[1].plot(entropy, color='green', alpha=0.25)
+        c = 'black' if idx == 0 else 'green'
+        ax[1].plot(smoothed_entropy, color=c)
+        max_entropy = np.log2(br.bw_parameters["num"])
+        ax[1].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'g--')
+        # ax[1].tick_params(axis='y',labelcolor='green')
+        # ax[1].text(1500,-12-2*idx,f"~{smoothed_entropy[smoothed_entropy.shape[0]//2:].mean():.2f}", color=c)
+        ax[1].set_ylabel('entropy')
+        to_write[1].append((idx, f"{entropy[n // 2:].mean():.3f}", dict(color=c)))
+
+        beh_error = np.squeeze(br.beh_error_list)
+        c = 'black' if idx == 0 else 'orange'
+        ax[2].plot(beh_error, color=c)
+        ax[2].set_ylabel('behavior')
+        # ax[2].tick_params(axis='y',labelcolor='green')
+        to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
+
+    #         living = np.squeeze(br.n_living_list)
+    #         c = 'black' if idx == 0 else 'orange'
+    #         ax[2].plot(living, color=c)
+    #         ax[2].set_ylabel('number living')
+    #         # ax[2].tick_params(axis='y',labelcolor='green')
+    #         to_write[2].append((idx, f"{living[n//2:].mean():.3f}", dict(color = c)))
+
+    for i, l in enumerate(to_write):
+        ylim = ax[i].get_ylim()
+        yrange = ylim[1] - ylim[0]
+        for idx, text, kw in l:
+            ax[i].text(n * 1.01, ylim[1] - (idx + 1) * yrange / 7, text, clip_on=True, **kw)
+
+    xticks = list(ax[2].get_xticks())
+    xticks.append(n // 2)
+    ax[2].set_xticks(xticks)
+    ax[0].set_xlim(xlim)
+    # ax[0].set_title(" ".join(to_print))
+    # ax[0].legend(loc="lower right")
+
+    # ax[2].set_ylim([0,1000])
+
 
 
 
