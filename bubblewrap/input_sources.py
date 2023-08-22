@@ -1,38 +1,6 @@
 import numpy as np
 import warnings
 
-# s = np.load(file)
-#
-# if "npy" in file:
-#     data = s.T
-# elif "npz" in file:
-#     data = s['y'][0]
-#     pre_obs = s['x']
-#
-#     data = np.tile(data, reps=(tiles, 1))
-#     obs = pre_obs
-#     for i in range(1, tiles):
-#         c = (-1) ** i if invert_alternate_behavior else 1
-#         obs = np.hstack((obs, pre_obs * c))
-#
-#
-#
-# obs = obs.reshape((-1,1))
-# old_data = np.array(data)
-# old_obs = np.array(obs)
-#
-# if data_transform == "n,b":
-#     data = np.hstack([data, obs])
-# elif data_transform == "n":
-#     data = np.hstack([data])
-# elif data_transform == "b":
-#     data = np.hstack([obs])
-# else:
-#     raise Exception("You need to set data_transform")
-#
-#
-# obs = np.hstack([old_data,old_obs])
-
 class NumpyDataSource:
     def __init__(self, obs, beh=None, time_offsets=()):
         self.obs = obs
@@ -52,6 +20,12 @@ class NumpyDataSource:
     def __len__(self):
         return self.clear_range[1] - self.clear_range[0]
 
+    def get_pair_shapes(self):
+        if self.beh is not None:
+            return self.obs.shape[1], self.beh.shape[1]
+        else:
+            return self.obs.shape[1], 0
+
     def __iter__(self):
         self.index = 0
         return self
@@ -70,7 +44,10 @@ class NumpyDataSource:
         return o, b, offset_pairs
 
     def get_pair(self, item, offset=0):
-    # def __getitem__(self, item):
+        # could be __getitem__
+
+        if item == "last_seen":
+            item = self.index - 1
         if item < 0:
             raise IndexError("Negative indexes are not supported.")
 
@@ -83,9 +60,17 @@ class NumpyDataSource:
         else:
             return self.obs[inside_index,:], None
 
+    def get_history(self, depth=None):
+        slice_end = self.index + self.clear_range[0]
+        slice_start = self.clear_range[0]
+        if depth is not None:
+            slice_start = slice_end - depth
 
-    def get_pair_shapes(self):
+        if slice_start < self.clear_range[0]:
+            raise IndexError()
+
+        o = self.obs[slice_start:slice_end,:]
+        b = None
         if self.beh is not None:
-            return self.obs.shape[1], self.beh.shape[1]
-        else:
-            return self.obs.shape[1], 0
+            b = self.obs[slice_start:slice_end, :]
+        return o, b

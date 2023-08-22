@@ -1,20 +1,17 @@
 import numpy as np
-import matplotlib
 import matplotlib.pylab as plt
 from matplotlib.patches import Ellipse
-from math import atan2, floor
+from math import atan2
+from typing import TYPE_CHECKING
 
-import os
-if os.environ.get("display") is not None:
-    matplotlib.use('QtAgg')
-
+if TYPE_CHECKING:
+    import bubblewrap
 
 def plot_2d(ax, data, bw):
     A = bw.A
     mu = bw.mu
     L = bw.L
     n_obs = np.array(bw.n_obs)
-    # todo: remove bw
     ax.cla()
     ax.scatter(data[:,0], data[:,1], s=5, color='#004cff', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
     for n in np.arange(A.shape[0]):
@@ -151,44 +148,6 @@ def br_plot_3d(br):
     ax.text(in1, in2, 100, s='b', transform=ax.transAxes, fontsize=16, fontweight='bold', va='top', ha='right')
     plt.show()
 
-
-def plot_A_differences(A, end=100):
-    fig, ax = plt.subplots()
-    last_A = A
-    differences = []
-    for _ in range(2,end):
-        new_A = last_A @ A
-        differences.append(np.linalg.norm(last_A - new_A))
-        last_A = new_A
-    plt.plot(differences)
-
-
-
-
-def show_bubbles(ax, data, bw, params, step, i, keep_every_nth_frame):
-    ax.cla()
-
-    d = data[0:i+params["M"]+step]
-    plot_2d(ax, d, bw)
-
-    d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
-    ax.plot(d[:,0], d[:,1], 'k.')
-    ax.set_title(f"Observation Model (Bubbles) (i={i})")
-    ax.set_xlabel("neuron 1")
-    ax.set_ylabel("neuron 2")
-
-
-def show_inhabited_bubbles(ax, data, bw, params, step, i, keep_every_nth_frame):
-    ax.cla()
-
-    d = data[0:i+params["M"]+step]
-    plot_current_2d(ax, d, bw)
-
-    d = data[i + params["M"] - (keep_every_nth_frame - 1) * step:i + params["M"] + step]
-    ax.set_title(f"Currrent Bubbles (i={i})")
-    ax.set_xlabel("neuron 1")
-    ax.set_ylabel("neuron 2")
-
 def show_A(ax, bw):
     ax.cla()
     ims = ax.imshow(bw.A, aspect='equal', interpolation='nearest')
@@ -201,15 +160,10 @@ def show_A(ax, bw):
     live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
     ax.set_yticks(live_nodes)
 
-def show_D(ax, bw):
-    ax.cla()
-    ims = ax.imshow(bw.D, aspect='equal', interpolation='nearest')
-    ax.set_title("D")
-
-def show_Ct_y(ax, bw):
+def show_Ct_y(ax, regressor):
     old_ylim = ax.get_ylim()
     ax.cla()
-    ax.plot(bw.Ct_y, '.-')
+    ax.plot(regressor.Ct_y, '.-')
     ax.set_title("Ct_y")
 
     new_ylim = ax.get_ylim()
@@ -228,11 +182,12 @@ def show_alpha(ax, br):
     # ax.set_xticks([0.5,5,10,15,20])
     # ax.set_xticklabels([-20, -15, -10, -5, 0])
 
-def show_behavior_variables(ax, bw, obs):
+def show_behavior_variables(ax, br, beh):
+    # todo: this function is fragile, maybe delete it?
     ax.cla()
-    ax.plot(bw.beh_list[-20:])
-    ax.plot(obs[-20:])
-    ax.set_ylim([-21,21])
+    br: bubblewrap.bw_run.BWRun
+    ax.plot(br.behavior_pred_history[0][-20:])
+    ax.plot(beh[-20:])
     ax.set_title("Behavior prediction")
 
 def show_A_eigenspectrum(ax, bw):
@@ -242,44 +197,45 @@ def show_A_eigenspectrum(ax, bw):
     ax.set_title("Eigenspectrum of A")
     ax.set_ylim([0,1])
 
-# TODO: remove this?
-def mean_distance(data, shift=1):
+def _mean_distance(data, shift=1):
     x = data - data.mean(axis=0)
     T = x.shape[0]
-
     differences = x[0:T - shift] - x[shift:T]
     distances = np.linalg.norm(differences, axis=1)
-
     return distances.mean()
 
-def show_data_distance(ax, data, end_of_block, max_step=50):
+def show_data_distance(ax, d, max_step=50):
+    """like a distance autocovariance function"""
+
+
     old_ylim = ax.get_ylim()
     ax.cla()
-    start = max(end_of_block-3*max_step, 0)
-    d = data[start:end_of_block]
     if d.shape[0] > 10:
         shifts = np.arange(0,min(d.shape[0]//2, max_step))
-        distances = [mean_distance(d, shift) for shift in shifts]
+        distances = [_mean_distance(d, shift) for shift in shifts]
         ax.plot(shifts, distances)
     ax.set_xlim([0,max_step])
     new_ylim = ax.get_ylim()
     ax.set_ylim([0, max(old_ylim[1], new_ylim[1])])
-    ax.set_title(f"dataset[{start}:{end_of_block}] distances")
+    ax.set_title(f"dataset distances")
     ax.set_xlabel("offset")
     ax.set_ylabel("distance")
 
-def show_nstep_pred_pdf(ax, bw, data, current_index, other_axis, fig, n=0):
-    # vmin = np.inf
-    # vmax = -np.inf
-    if ax.collections:
-        vmax = ax.collections[-3].colorbar.vmax
-        vmin = ax.collections[-3].colorbar.vmin
-        ax.collections[-3].colorbar.remove()
+def show_nstep_pred_pdf(ax, bw, other_axis, current_location, offset_location, fig, offset=0):
+    """
+    the other_axis is supposed to be something showing the bubbles, so they line up
+    """
+    # # this code can be used to keep a stable colorbar
+    # if ax.collections:
+    #     vmax = ax.collections[-3].colorbar.vmax
+    #     vmin = ax.collections[-3].colorbar.vmin
+    #     ax.collections[-3].colorbar.remove()
     ax.cla()
-    other_axis: plt.Axes
 
+    other_axis: plt.Axes
     xlim = other_axis.get_xlim()
     ylim = other_axis.get_ylim()
+
     density = 50
     x_bins = np.linspace(*xlim, density+1)
     y_bins = np.linspace(*ylim, density+1)
@@ -288,27 +244,24 @@ def show_nstep_pred_pdf(ax, bw, data, current_index, other_axis, fig, n=0):
         for j in range(density):
             x = np.array([x_bins[i] + x_bins[i+1], y_bins[j] + y_bins[j+1]])/2
             b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
-            pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A,n) @ np.exp(b_values)
+            pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A,offset) @ np.exp(b_values)
+
+    # these might control the colors
     # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=min(vmin, pdf.min()), vmax=max(vmax, pdf.max()))
     # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=0, vmax=0.03) #log, vmin=-15, vmax=-5
-    cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T) #log, vmin=-15, vmax=-5
+
+    cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T)
     fig.colorbar(cmesh)
-    if current_index+n < data.shape[0]:
-        to_draw = data[current_index+n]
-        ax.scatter(to_draw[0], to_draw[1], c='red', alpha=.25)
 
-    to_draw = data[current_index]
-    ax.scatter(to_draw[0], to_draw[1], c='red')
-    ax.set_title(f"{n}-step pred. at t={current_index}")
+    if offset_location is not None:
+        ax.scatter(offset_location[0], offset_location[1], c='red', alpha=.25)
 
-def show_w(ax,bw):
-    ax.cla()
-    ax.plot(bw.D@bw.Ct_y, '.-')
-    ax.set_ylim([-1.1, 1.1])
-    ax.set_xlabel("bubble #")
-    ax.set_ylabel("weight magnitude")
+    if current_location is not None:
+        ax.scatter(current_location[0], current_location[1], c='red')
 
-def show_w_sideways(ax,bw, obs):
+    ax.set_title(f"{offset}-step pred.")
+
+def show_w_sideways(ax, bw, current_behavior):
     ax.cla()
     w = np.array(bw.D @ bw.Ct_y)
     w[bw.dead_nodes] = 0
@@ -318,81 +271,87 @@ def show_w_sideways(ax,bw, obs):
     ax.plot(w, np.arange(w.size), alpha=0.25)
     ax.scatter(w, np.arange(w.size), alpha=a, c="C0")
     ylim = ax.get_ylim()
-    ax.vlines(obs[-1], alpha=.5, ymin=ylim[0], ymax=ylim[1], colors="C1" )
+    ax.vlines(current_behavior[0], alpha=.5, ymin=ylim[0], ymax=ylim[1], colors="C1" )
     ax.set_ylabel("bubble #")
     ax.set_xlabel("weight magnitude")
     ax.set_title(r"Weights (times $\alpha$)")
     ax.set_xlim([-21, 21])
 
 
-def one_sided_ewma(data, com=100):
+def _one_sided_ewma(data, com=100):
     import pandas as pd
     return pd.DataFrame(data=dict(data=data)).ewm(com).mean()["data"]
 
+def _deduce_bw_parameters(bw):
+    bw: bubblewrap.Bubblewrap
+    return dict(dim=bw.d,
+                beh_dim=bw.beh_dim,
+                num=bw.N,
+                seed=bw.seed,
+                M=bw.M,
+                step=bw.step,
+                lam=bw.lam_0,
+                eps=bw.eps,
+                nu=bw.nu,
+                B_thresh=bw.B_thresh,
+                n_thresh=bw.n_thresh,
+                batch=bw.batch,
+                batch_size=bw.batch_size,
+                go_fast=bw.go_fast)
 
-def compare_metrics(brs):
-    # ps = [br.bw_parameters for br in brs]
-    # keys = set([leaf for tree in ps for leaf in tree.keys()])
-    # keep_keys = []
-    # for key in keys:
-    #     values = [d.get(key) for d in ps]
-    #     if not all([values[0] == v for v in values]):
-    #         keep_keys.append(key)
-    # to_print = []
-    # for key in keep_keys:
-    #     to_print.append(f"{key}: {[p.get(key) for p in ps]}")
-    #
-    # for p in to_print:
-    #     print(p)
+def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
+    ps = [_deduce_bw_parameters(br.bw) for br in brs]
+    keys = set([leaf for tree in ps for leaf in tree.keys()])
+    keep_keys = []
+    for key in keys:
+        values = [d.get(key) for d in ps]
+        if not all([values[0] == v for v in values]):
+            keep_keys.append(key)
+    to_print = []
+    for key in keep_keys:
+        to_print.append(f"{key}: {[p.get(key) for p in ps]}")
 
-    fig, ax = plt.subplots(figsize=(12, 5), nrows=3, ncols=1, sharex=True, layout='tight')
+
+    fig, ax = plt.subplots(figsize=(12, 5), nrows=3, ncols=1, sharex='all', layout='tight')
     to_write = [[], [], []]
 
-    smooting_scale = 100
     n = 0
     for idx, br in enumerate(brs):
-        n = max(n, br.entropy_list.shape[0])
+        br: bubblewrap.bw_run.BWRun
+        n = max(n, br.entropy_history[offset].shape[0])
 
-        xlim = np.array([-0.01 * n, n])
-        xlim[1] *= 1.07
+        xlim = n * np.array([-0.01, 1.07])
 
-        # predictions = br.pred_list[br.bw_parameters["M"]+1:,0]
-        predictions = br.pred_list[:, 0]
-        smoothed_predictions = one_sided_ewma(predictions, smooting_scale)
+        predictions = br.prediction_history[offset]
+        smoothed_predictions = _one_sided_ewma(predictions, smoothing_scale)
 
         ax[0].plot(predictions, alpha=0.25, color='blue')
-        c = 'black' if idx == 0 else 'blue'
+        c = 'black' if idx == 0 and first_is_unique else 'blue'
         ax[0].plot(smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
-        # ax[0].tick_params(axis='y',labelcolor='blue')
-        # ax[0].text(1800,-12-2*idx,f"~{smoothed_predictions[smoothed_predictions.shape[0]//2:].mean():.2f}", color=c)
+        ax[0].tick_params(axis='y',labelcolor='blue')
+        # todo: bring this back
         ax[0].set_ylabel('prediction')
         to_write[0].append((idx, f"{predictions[n // 2:].mean():.3f}", dict(color=c)))
 
-        entropy = br.entropy_list[:, 0]
-        smoothed_entropy = one_sided_ewma(entropy, smooting_scale)
+        entropy = br.entropy_history[offset]
+        smoothed_entropy = _one_sided_ewma(entropy, smoothing_scale)
         ax[1].plot(entropy, color='green', alpha=0.25)
-        c = 'black' if idx == 0 else 'green'
+        c = 'black' if idx == 0 and first_is_unique else 'green'
         ax[1].plot(smoothed_entropy, color=c)
-        max_entropy = np.log2(br.bw_parameters["num"])
+        max_entropy = np.log2(br.bw.N)
         ax[1].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'g--')
-        # ax[1].tick_params(axis='y',labelcolor='green')
-        # ax[1].text(1500,-12-2*idx,f"~{smoothed_entropy[smoothed_entropy.shape[0]//2:].mean():.2f}", color=c)
+
+        ax[1].tick_params(axis='y',labelcolor='green')
         ax[1].set_ylabel('entropy')
         to_write[1].append((idx, f"{entropy[n // 2:].mean():.3f}", dict(color=c)))
 
-        beh_error = np.squeeze(br.beh_error_list)
-        c = 'black' if idx == 0 else 'orange'
+        beh_error = np.squeeze(br.behavior_error_history[offset]**2)
+        c = 'black' if idx == 0 and first_is_unique else 'orange'
         ax[2].plot(beh_error, color=c)
         ax[2].set_ylabel('behavior')
-        # ax[2].tick_params(axis='y',labelcolor='green')
+        ax[2].tick_params(axis='y',labelcolor='green')
         to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
 
-    #         living = np.squeeze(br.n_living_list)
-    #         c = 'black' if idx == 0 else 'orange'
-    #         ax[2].plot(living, color=c)
-    #         ax[2].set_ylabel('number living')
-    #         # ax[2].tick_params(axis='y',labelcolor='green')
-    #         to_write[2].append((idx, f"{living[n//2:].mean():.3f}", dict(color = c)))
 
     for i, l in enumerate(to_write):
         ylim = ax[i].get_ylim()
@@ -404,41 +363,7 @@ def compare_metrics(brs):
     xticks.append(n // 2)
     ax[2].set_xticks(xticks)
     ax[0].set_xlim(xlim)
-    # ax[0].set_title(" ".join(to_print))
-    # ax[0].legend(loc="lower right")
+    ax[0].set_title(" ".join(to_print))
+    ax[0].legend(loc="lower right")
 
-    # ax[2].set_ylim([0,1000])
-
-
-
-
-
-# todo: delete
-def br_plot_2d(br):
-    fig, ax = plt.subplots()
-    s = np.load(br.file)
-    data = s['y'][0]
-    n_obs = np.array(br.n_obs)
-    plot_2d(ax, data, br.A, br.mu, br.L, n_obs)
     plt.show()
-
-def plot(fname):
-    import pickle
-    with open(fname, "rb") as fhan:
-        br = pickle.load(fhan)
-    if "vdp" in br.file:
-        br_plot_2d(br)
-    elif "lorenz" in br.file:
-        br_plot_3d(br)
-    elif "clock" in br.file:
-        br_plot_2d(br)
-    else:
-        raise Exception("Cannot detect trajectory type from saved file.")
-
-
-
-if __name__ == '__main__':
-    import glob
-    files = glob.glob("generated/bubblewrap_runs/bubblewrap_run_2023*")
-    files.sort()
-    plot(files[-1])
