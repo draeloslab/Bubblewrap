@@ -216,17 +216,18 @@ def show_Ct_y(ax, bw):
     ax.set_ylim([min(old_ylim[0], new_ylim[0]), max(old_ylim[1], new_ylim[1])])
 
 
-def show_alpha(ax, bw):
+def show_alpha(ax, br):
     ax.cla()
-    ims = ax.imshow(np.array(bw.alpha_list[-19:] + [bw.alpha]).T, aspect='auto', interpolation='nearest')
+    ims = ax.imshow(np.array(br.alpha_history[-19:] + [br.bw.alpha]).T, aspect='auto', interpolation='nearest')
 
     ax.set_title("State Estimate ($\\alpha$)")
-    live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
+    live_nodes = [x for x in np.arange(br.bw.N) if x not in br.bw.dead_nodes]
     ax.set_yticks(live_nodes)
     ax.set_ylabel("bubble")
     ax.set_xlabel("steps (ago)")
     # ax.set_xticks([0.5,5,10,15,20])
     # ax.set_xticklabels([-20, -15, -10, -5, 0])
+
 def show_behavior_variables(ax, bw, obs):
     ax.cla()
     ax.plot(bw.beh_list[-20:])
@@ -361,7 +362,7 @@ def compare_metrics(brs):
 
         ax[0].plot(predictions, alpha=0.25, color='blue')
         c = 'black' if idx == 0 else 'blue'
-        ax[0].plot(smoothed_predictions, color=c, label=br.outfile.split("/")[-1].split(".")[0].split("_")[-1])
+        ax[0].plot(smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
         # ax[0].tick_params(axis='y',labelcolor='blue')
         # ax[0].text(1800,-12-2*idx,f"~{smoothed_predictions[smoothed_predictions.shape[0]//2:].mean():.2f}", color=c)
         ax[0].set_ylabel('prediction')
