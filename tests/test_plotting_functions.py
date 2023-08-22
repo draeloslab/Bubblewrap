@@ -1,36 +1,11 @@
 import matplotlib.pyplot as plt
-import pytest
-import numpy as np
-
-from bubblewrap import Bubblewrap
-from bubblewrap.default_parameters import default_clock_parameters
-from bubblewrap.input_sources import NumpyDataSource
-from bubblewrap.bw_run import BWRun
 import bubblewrap.plotting_functions as bpf
-from bubblewrap.regressions import SymmetricNoisy
 
-@pytest.fixture
-def rng():
-    return np.random.default_rng(0)
 
-@pytest.fixture
-def make_br(rng):
-    def br_f():
-        m, n_obs, n_beh = 200, 2, 3
-        obs = rng.normal(size=(m, n_obs))
-        beh = rng.normal(size=(m, n_beh))
-        ds = NumpyDataSource(obs, beh, time_offsets=(3, 0, 3))
-
-        bw = Bubblewrap(n_obs, **default_clock_parameters)
-        reg = SymmetricNoisy(bw.N, n_beh, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
-        br = BWRun(bw, ds, behavior_regressor=reg, show_tqdm=False)
-        br.run(save=True)
-        return br
-    return br_f
 
 def test_axis_plots(make_br):
 
-    fig, axs = plt.subplots(nrows=1,ncols=2)
+    fig, axs = plt.subplots(nrows=1, ncols=2)
     ax = axs[0]
     br = make_br()
     bw = br.bw
