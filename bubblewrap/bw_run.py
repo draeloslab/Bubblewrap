@@ -103,30 +103,6 @@ class BWRun:
         if save:
             self.save()
 
-
-    def _run_all_data(self):
-
-        for i in range(self.bw.M):
-            obs, beh = self.data_source[i]
-            self.bw.observe(obs, beh)
-
-        self.bw.init_nodes()
-
-        for i in range(len(self.data_source)):
-            obs, beh = self.data_source[i]
-
-            offset_pairs = {}
-            for offset in self.data_source.time_offsets:
-                offset_pairs[offset] = self.data_source[i + offset]
-
-            self.bw.observe(obs, beh)
-
-            self.log_for_step(i, offset_pairs)
-            self.bw.e_step()
-            self.bw.grad_Q()
-
-
-
     def log_for_step(self, step, offset_pairs):
         # TODO: allow skipping of (e.g. entropy) steps?
         for offset, (o, b) in offset_pairs.items():
