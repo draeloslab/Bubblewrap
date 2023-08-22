@@ -11,10 +11,9 @@ from .regressions import WindowFast, SymmetricNoisy
 epsilon = 1e-10
 
 class Bubblewrap():
-    def __init__(self, dim, beh_dim=False, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, batch=False, batch_size=1, go_fast=False):
+    def __init__(self, dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4, batch=False, batch_size=1, go_fast=False):
         self.N = num            # Number of nodes
         self.d = dim            # dimension of the space
-        self.beh_dim = beh_dim
         self.seed = seed
         self.lam_0 = lam
         self.nu = nu
@@ -37,9 +36,6 @@ class Bubblewrap():
         self.key = random.PRNGKey(self.seed)
         numpy.random.seed(self.seed)
         # TODO: change this to use the `rng` system
-
-        if self.beh_dim:
-            self.regressor = SymmetricNoisy(self.N, beh_dim, forgetting_factor=1-(1e-2), noise_scale=1e-5)
 
         # observations of the data; M is how many to keep in history
         if self.batch: M=self.batch_size
@@ -140,15 +136,15 @@ class Bubblewrap():
         self.get_entropy = jit(entropy, static_argnames=['steps_ahead'])
 
 
-    def observe(self, x, behavior=None):
+    def observe(self, x):
         # Get new data point and update observation history
 
         ## Do all observations, and then update mu0, sigma0
         if self.batch:
             for i in range(len(x)): # x array of observations
-                self.obs.new_obs(x[i], behavior[i])
+                self.obs.new_obs(x[i])
         else:
-                self.obs.new_obs(x, behavior)
+                self.obs.new_obs(x)
 
         if not self.go_fast and self.obs.cov is not None and self.mu_orig is not None:
             lamr = 0.02
@@ -168,16 +164,10 @@ class Bubblewrap():
 
 
     def single_e_step(self, x):
-        # todo: this needs to take behavior as an input to work with the batch API
         self.beta = 1 + 10/(self.t+1)
         self.B = self.logB_jax(x, self.mu, self.L, self.L_diag)
         self.update_B(x)
         self.gamma, self.alpha, self.En, self.S1, self.S2, self.n_obs = self.update_internal_jax(self.A, self.B, self.alpha, self.En, self.eps, self.S1, x, self.S2, self.n_obs)
-
-        if self.beh_dim:
-            b = self.obs.saved_behavior[-1]
-            if not numpy.any(numpy.isnan(b)):
-                self.regressor.lazy_observe(numpy.array(self.alpha),b)
 
         self.t += 1
 
@@ -405,7 +395,6 @@ class Observations:
 
         self.curr = None
         self.saved_obs = deque(maxlen=self.M)
-        self.saved_behavior = deque(maxlen=self.M) #TODO: this should be more rigorous
 
         self.mean = None
         self.last_mean = None
@@ -414,11 +403,9 @@ class Observations:
         
         self.n_obs = 0
 
-    def new_obs(self, coord_new, behavior=None):
+    def new_obs(self, coord_new):
         self.curr = coord_new
         self.saved_obs.append(self.curr)
-        if behavior is not None:
-            self.saved_behavior.append(behavior)
         self.n_obs += 1
 
         if not self.go_fast:

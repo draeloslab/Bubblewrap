@@ -16,11 +16,16 @@ if TYPE_CHECKING:
 
 
 class BWRun:
-    def __init__(self, bw: Bubblewrap, data_source, animation_manager=None, save_A=False, show_tqdm=True, output_directory="generated/bubblewrap_runs"):
+    def __init__(self, bw, data_source, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True, output_directory="generated/bubblewrap_runs"):
         # todo: add total runtime tracker
-        self.data_source:NumpyDataSource = data_source
-        self.bw = bw
-        self.animation_manager : AnimationManager = animation_manager
+        self.data_source: NumpyDataSource = data_source
+        self.bw: Bubblewrap = bw
+        self.animation_manager: AnimationManager = animation_manager
+
+        # only keep a behavior regressor if there is behavior
+        self.behavior_regressor = None
+        if self.data_source.get_pair_shapes()[1] > 0:
+            self.behavior_regressor: OnlineRegresion = behavior_regressor
 
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         self.output_prefix = os.path.join(output_directory, f"bubblewrap_run_{time_string}")
@@ -45,7 +50,9 @@ class BWRun:
 
         self.saved = False
 
-        assert (bw.d, bw.beh_dim) == data_source.get_pair_shapes()
+        obs_dim, beh_dim = data_source.get_pair_shapes()
+        assert obs_dim == self.bw.d
+        warnings.warn("behavior dim not checked")
         # note that if there is no behavior, the behavior dimensions will be zero
 
     def run(self, save=True):
@@ -54,7 +61,7 @@ class BWRun:
 
         f = tqdm if self.show_tqdm else lambda x: x
         for step, (obs, beh, offset_pairs) in enumerate(f(self.data_source)):
-            self.bw.observe(obs, beh)
+            self.bw.observe(obs)
 
             if step < self.bw.M:
                 pass
@@ -63,6 +70,9 @@ class BWRun:
                 self.bw.e_step() # todo: is this OK?
                 self.bw.grad_Q()
             else:
+                if self.behavior_regressor:
+                    self.behavior_regressor.lazy_observe(self.bw.alpha, beh) # todo: where should this go??
+
                 self.log_for_step(step, offset_pairs)
                 self.bw.e_step()
                 self.bw.grad_Q()
@@ -79,9 +89,9 @@ class BWRun:
             e = self.bw.get_entropy(self.bw.A, self.bw.alpha, offset)
             self.entropy_history[offset].append(e)
 
-            if self.bw.beh_dim:
+            if self.behavior_regressor:
                 alpha_ahead = np.array(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)).reshape(-1,1)
-                bp = self.bw.regressor.predict(alpha_ahead)
+                bp = self.behavior_regressor.predict(alpha_ahead)
 
                 self.behavior_pred_history[offset].append(bp)
                 self.behavior_error_history[offset].append(bp - b)
@@ -125,9 +135,6 @@ class BWRun:
         with open(self.pickle_file, "wb") as fhan:
             pickle.dump(self, fhan)
 
-    # def __del__(self):
-    #     if not self.saved:
-    #         warnings.warn("A Bubblewrap run was not saved.")
 
 
 class AnimationManager:

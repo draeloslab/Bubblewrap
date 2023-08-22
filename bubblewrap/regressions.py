@@ -76,6 +76,7 @@ class SymmetricNoisy(OnlineRegresion):
         self.n_observed += 1
 
     def lazy_observe(self, x, y):
+        x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.N or self.D is not None:
             self.update(x, y, update_D=True)
         else:
@@ -153,6 +154,7 @@ class WindowSlow(OnlineRegresion):
         self.n_observed += 1
 
     def lazy_observe(self, x, y):
+        x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.N or self.D is not None:
             self.update(x, y, update_D=True)
         else:
@@ -224,6 +226,7 @@ class WindowFast(OnlineRegresion):
         self.n_observed += 1
 
     def lazy_observe(self, x, y):
+        x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.N or self.D is not None:
             self.update(x, y, update_D=True)
         else:

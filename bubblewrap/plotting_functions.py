@@ -285,7 +285,6 @@ def _one_sided_ewma(data, com=100):
 def _deduce_bw_parameters(bw):
     bw: bubblewrap.Bubblewrap
     return dict(dim=bw.d,
-                beh_dim=bw.beh_dim,
                 num=bw.N,
                 seed=bw.seed,
                 M=bw.M,
