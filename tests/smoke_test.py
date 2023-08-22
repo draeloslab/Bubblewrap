@@ -34,11 +34,13 @@ def test_can_make_video():
     ds = NumpyDataSource(obs, time_offsets=(-10, 0, 10))
 
     class CustomAnimation(AnimationManager):
+        n_rows = 1
+        n_cols = 1
         def custom_draw_frame(self, step, bw, br):
             bpf.show_A(self.ax, bw) # note: you would usually index into ax, but this call uses 1 row and 1 column
 
-    CA = CustomAnimation(n_rows=1, n_cols=1)
+    ca = CustomAnimation()
 
     bw = Bubblewrap(3, **default_clock_parameters)
-    br = BWRun(bw, ds, CA, show_tqdm=False)
+    br = BWRun(bw, ds, ca, show_tqdm=False)
     br.run()

@@ -365,5 +365,3 @@ def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
     ax[0].set_xlim(xlim)
     ax[0].set_title(" ".join(to_print))
     ax[0].legend(loc="lower right")
-
-    plt.show()

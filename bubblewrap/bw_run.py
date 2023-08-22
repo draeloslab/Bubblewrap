@@ -12,6 +12,7 @@ import warnings
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .input_sources import NumpyDataSource
+    from .regressions import OnlineRegresion
 
 
 class BWRun:
@@ -131,21 +132,16 @@ class BWRun:
 
 class AnimationManager:
     # todo: this could inherit from FileWriter; that might be better design
-    def __init__(self, n_rows=2, n_cols=2, fps=20, dpi=100, outfile="generated/movie.mp4"):
-        self.n_rows = n_rows
-        self.n_cols = n_cols
-        self.fps = fps
-        self.dpi = dpi
-        self.outfile = outfile
-
+    n_rows = 2
+    n_cols = 2
+    fps = 20
+    dpi = 100
+    outfile = "generated/movie.mp4"
+    def __init__(self):
         self.movie_writer = FFMpegFileWriter(fps=self.fps)
-
         self.fig, self.ax = plt.subplots(self.n_rows, self.n_cols, figsize=(10, 10), layout='tight')
-
         self.movie_writer.setup(self.fig, self.outfile, dpi=self.dpi)
-
         self.finished = False
-
         self.final_output_location = None
 
     def set_final_output_location(self, final_output_location):
@@ -157,7 +153,7 @@ class AnimationManager:
             os.rename(self.outfile, self.final_output_location)
             self.finished = True
 
-    def frame_draw_condition(self, frame_number, bw):
+    def frame_draw_condition(self, step_number, bw):
         return True
 
     def draw_frame(self, step, bw, br):
