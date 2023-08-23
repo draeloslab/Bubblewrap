@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import bubblewrap
 
-def plot_2d(ax, data, bw):
+def show_bubbles_2d(ax, data, bw):
     A = bw.A
     mu = bw.mu
     L = bw.L
@@ -47,12 +47,9 @@ def plot_2d(ax, data, bw):
     ax.scatter(data[0,0], data[0,1], color="#004cff", s=10)
 
 
-def plot_current_2d(ax, data, bw):
-    A = bw.A
+def show_active_bubbles_2d(ax, data, bw):
     mu = bw.mu
     L = bw.L
-    n_obs = np.array(bw.n_obs)
-    # todo: remove bw
     ax.cla()
     ax.scatter(data[:,0], data[:,1], s=5, color='#004cff', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
     ax.scatter(data[-1,0], data[-1,1], s=10, color='red')
@@ -221,20 +218,21 @@ def show_data_distance(ax, d, max_step=50):
     ax.set_xlabel("offset")
     ax.set_ylabel("distance")
 
-def show_nstep_pred_pdf(ax, bw, other_axis, current_location, offset_location, fig, offset=0):
+def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
     """
     the other_axis is supposed to be something showing the bubbles, so they line up
     """
-    # # this code can be used to keep a stable colorbar
-    # if ax.collections:
-    #     vmax = ax.collections[-3].colorbar.vmax
-    #     vmin = ax.collections[-3].colorbar.vmin
-    #     ax.collections[-3].colorbar.remove()
+    if ax.collections:
+        old_vmax = ax.collections[-3].colorbar.vmax
+        old_vmin = ax.collections[-3].colorbar.vmin
+        ax.collections[-3].colorbar.remove()
     ax.cla()
 
     other_axis: plt.Axes
     xlim = other_axis.get_xlim()
     ylim = other_axis.get_ylim()
+
+    bw = br.bw
 
     density = 50
     x_bins = np.linspace(*xlim, density+1)
@@ -253,11 +251,12 @@ def show_nstep_pred_pdf(ax, bw, other_axis, current_location, offset_location, f
     cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T)
     fig.colorbar(cmesh)
 
-    if offset_location is not None:
-        ax.scatter(offset_location[0], offset_location[1], c='red', alpha=.25)
+    current_location, _ = br.data_source.get_atemporal_data_pair(0)
+    offset_location, _ = br.data_source.get_atemporal_data_pair(offset)
 
-    if current_location is not None:
-        ax.scatter(current_location[0], current_location[1], c='red')
+    ax.scatter(offset_location[0], offset_location[1], c='white')
+
+    ax.scatter(current_location[0], current_location[1], c='red')
 
     ax.set_title(f"{offset}-step pred.")
 

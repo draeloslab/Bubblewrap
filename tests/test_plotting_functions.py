@@ -12,20 +12,19 @@ def test_axis_plots(make_br):
     obs, beh = br.data_source.get_history()
 
     offset = 3
-    current_location, current_behavior = br.data_source.get_atemporal_data_pair(offset=0)
     predicted_location, _ = br.data_source.get_atemporal_data_pair(offset=offset)
 
     ### good ###
-    bpf.plot_2d(ax, obs, bw)
-    bpf.plot_current_2d(ax, obs, bw)
+    bpf.show_bubbles_2d(ax, obs, bw)
+    bpf.show_active_bubbles_2d(ax, obs, bw)
     bpf.show_A(ax, bw)
     bpf.show_alpha(ax, br)
     bpf.show_behavior_variables(ax, br, beh)
     bpf.show_A_eigenspectrum(ax, bw)
     bpf.show_data_distance(ax, obs, max_step=50)
 
-    bpf.plot_2d(axs[0], obs, bw)
-    bpf.show_nstep_pred_pdf(axs[1], bw, axs[0], fig=fig, current_location=current_location, offset_location=predicted_location,  offset=offset)
+    bpf.show_bubbles_2d(axs[0], obs, bw)
+    bpf.show_nstep_pred_pdf(axs[1], br, axs[0], fig=fig, offset=offset)
 
 
     ### to fix ###

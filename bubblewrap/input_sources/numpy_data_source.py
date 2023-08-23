@@ -29,7 +29,7 @@ class DataSource:
         pass
 
 class HMMSimDataSource(DataSource):
-    def __init__(self, hmm, seed, length, time_offsets=(), min_memory_radius=200):
+    def __init__(self, hmm, seed, length, time_offsets=(), min_memory_radius=1000):
         super().__init__(time_offsets)
         self.hmm: HMM = hmm
         self.seed = seed

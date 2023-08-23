@@ -53,7 +53,7 @@ class BWRun:
         obs_dim, beh_dim = data_source.get_pair_shapes()
         assert obs_dim == self.bw.d
         if self.behavior_regressor:
-            assert beh_dim == self.behavior_regressor.o
+            assert beh_dim == self.behavior_regressor.output_d
         # note that if there is no behavior, the behavior dimensions will be zero
 
     def run(self, save=True):
@@ -71,12 +71,12 @@ class BWRun:
                 self.bw.e_step() # todo: is this OK?
                 self.bw.grad_Q()
             else:
-                if self.behavior_regressor:
-                    self.behavior_regressor.lazy_observe(self.bw.alpha, beh) # todo: where should this go??
-
-                self.log_for_step(step, offset_pairs)
                 self.bw.e_step()
                 self.bw.grad_Q()
+
+                if self.behavior_regressor:
+                    self.behavior_regressor.lazy_observe(self.bw.alpha, beh)
+                self.log_for_step(step, offset_pairs)
 
         if save:
             self.save()

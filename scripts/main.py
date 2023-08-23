@@ -1,25 +1,34 @@
 import numpy as np
 from bubblewrap import Bubblewrap, BWRun, NumpyDataSource, AnimationManager, default_clock_parameters, SymmetricNoisyRegressor
+from bubblewrap.input_sources import HMM, HMMSimDataSource
 import bubblewrap.plotting_functions as bpf
-from bubblewrap.input_sources.hmm_simulation import HMM
 
 def example_movie():
-    rng = np.random.default_rng()
-    m, n_obs, n_beh = 200, 3, 4
-    obs = rng.normal(size=(m, n_obs))
-    ds = NumpyDataSource(obs, time_offsets=(-10, 0, 10))
+    # define the data to feed into bubblewrap
+    hmm = HMM.gaussian_clock_hmm(n_states=8,p1=.9)
+    ds = HMMSimDataSource(hmm=hmm, seed=42, length=150, time_offsets=(1,))
 
-    bw = Bubblewrap(n_obs, **default_clock_parameters)
-    reg = SymmetricNoisyRegressor(bw.N, n_beh, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
+    # define the bubblewrap object
+    bw = Bubblewrap(dim=2, **default_clock_parameters)
 
-    class SimpleAnimation(AnimationManager):
-        def custom_draw_frame(self, step, bw, br):
-            bpf.show_alpha(self.ax[0, 0], br)
-            bpf.show_A(self.ax[0, 1], bw)
-            bpf.show_A_eigenspectrum(self.ax[1, 0], bw)
-    am = SimpleAnimation()
+    # define the (optional) method to regress the HMM state from `bw.alpha`
+    reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
 
+    # define how we want to animate the progress
+    class CustomAnimation(AnimationManager):
+        def custom_draw_frame(self, step, bw: Bubblewrap, br: BWRun):
+            historical_observations = br.data_source.get_history()[0]
+
+            bpf.show_A(self.ax[0, 0], bw)
+            bpf.show_A_eigenspectrum(self.ax[0, 1], bw)
+            bpf.show_bubbles_2d(self.ax[1,0], historical_observations, bw)
+            bpf.show_nstep_pred_pdf(self.ax[1,1], br, other_axis=self.ax[1,0], fig=self.fig, offset=1)
+    am = CustomAnimation()
+
+    # define the object to coordinate all the other objects
     br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, animation_manager=am)
+
+    # run and save the output
     br.run()
 
 def main():
@@ -30,4 +39,4 @@ def main():
     print(obs)
 
 if __name__ == '__main__':
-    main()
+    example_movie()
