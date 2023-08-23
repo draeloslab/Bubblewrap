@@ -1,5 +1,5 @@
 import numpy as np
-from bubblewrap import Bubblewrap, BWRun, NumpyDataSource, AnimationManager, default_clock_parameters, SymmetricNoisy
+from bubblewrap import Bubblewrap, BWRun, NumpyDataSource, AnimationManager, default_clock_parameters, SymmetricNoisyRegressor
 import bubblewrap.plotting_functions as bpf
 from bubblewrap.input_sources.hmm_simulation import HMM
 
@@ -10,7 +10,7 @@ def example_movie():
     ds = NumpyDataSource(obs, time_offsets=(-10, 0, 10))
 
     bw = Bubblewrap(n_obs, **default_clock_parameters)
-    reg = SymmetricNoisy(bw.N, n_beh, forgetting_factor=1-(1e-2), noise_scale=1e-5)
+    reg = SymmetricNoisyRegressor(bw.N, n_beh, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
 
     class SimpleAnimation(AnimationManager):
         def custom_draw_frame(self, step, bw, br):

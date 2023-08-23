@@ -12,7 +12,7 @@ import warnings
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .input_sources import NumpyDataSource
-    from .regressions import OnlineRegresion
+    from .regressions import OnlineRegressor
 
 
 class BWRun:
@@ -25,7 +25,7 @@ class BWRun:
         # only keep a behavior regressor if there is behavior
         self.behavior_regressor = None
         if self.data_source.get_pair_shapes()[1] > 0:
-            self.behavior_regressor: OnlineRegresion = behavior_regressor
+            self.behavior_regressor: OnlineRegressor = behavior_regressor
 
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         self.output_prefix = os.path.join(output_directory, f"bubblewrap_run_{time_string}")
