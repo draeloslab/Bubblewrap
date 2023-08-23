@@ -52,7 +52,8 @@ class BWRun:
 
         obs_dim, beh_dim = data_source.get_pair_shapes()
         assert obs_dim == self.bw.d
-        warnings.warn("behavior dim not checked")
+        if self.behavior_regressor:
+            assert beh_dim == self.behavior_regressor.o
         # note that if there is no behavior, the behavior dimensions will be zero
 
     def run(self, save=True):

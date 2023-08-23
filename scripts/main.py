@@ -1,12 +1,9 @@
 import numpy as np
-from bubblewrap import Bubblewrap, BWRun, NumpyDataSource
-from bubblewrap.bw_run import AnimationManager
-from bubblewrap.default_parameters import default_clock_parameters
+from bubblewrap import Bubblewrap, BWRun, NumpyDataSource, AnimationManager, default_clock_parameters, SymmetricNoisy
 import bubblewrap.plotting_functions as bpf
-from bubblewrap.regressions import SymmetricNoisy
+from bubblewrap.input_sources.hmm_simulation import HMM
 
-
-def main():
+def example_movie():
     rng = np.random.default_rng()
     m, n_obs, n_beh = 200, 3, 4
     obs = rng.normal(size=(m, n_obs))
@@ -24,6 +21,13 @@ def main():
 
     br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, animation_manager=am)
     br.run()
+
+def main():
+    rng = np.random.default_rng()
+    hmm = HMM.gaussian_clock_hmm(20, .5, variance_scale=3, radius=10)
+    states, obs = hmm.simulate_with_states(1, rng)
+    states, obs = hmm.simulate_with_states(1, rng, start_state=states[-1])
+    print(obs)
 
 if __name__ == '__main__':
     main()

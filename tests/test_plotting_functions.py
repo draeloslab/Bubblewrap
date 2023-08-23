@@ -12,8 +12,8 @@ def test_axis_plots(make_br):
     obs, beh = br.data_source.get_history()
 
     offset = 3
-    current_location, current_behavior = br.data_source.get_pair(item="last_seen", offset=0)
-    predicted_location, _ = br.data_source.get_pair(item="last_seen", offset=offset)
+    current_location, current_behavior = br.data_source.get_atemporal_data_pair(offset=0)
+    predicted_location, _ = br.data_source.get_atemporal_data_pair(offset=offset)
 
     ### good ###
     bpf.plot_2d(ax, obs, bw)

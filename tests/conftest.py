@@ -24,7 +24,7 @@ def make_br(rng, outdir):
 
         bw = Bubblewrap(n_obs, **default_clock_parameters)
         reg = SymmetricNoisy(bw.N, n_beh, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
-        br = BWRun(bw, ds, behavior_regressor=reg, show_tqdm=False, output_directory=outdir)
+        br = BWRun(bw, ds, behavior_regressor=reg, show_tqdm=True, output_directory=outdir)
         br.run(save=True)
         return br
     return br_f
