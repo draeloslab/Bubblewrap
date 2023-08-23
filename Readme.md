@@ -34,6 +34,8 @@ class CustomAnimation(AnimationManager):
         
         # show the estimated likelihood across space for the next data point
         bpf.show_nstep_pred_pdf(self.ax[1,1], br, other_axis=self.ax[1,0], fig=self.fig, offset=1)
+
+# instantiate the (optional) object to make the video
 am = CustomAnimation()
 
 # define the object to coordinate all the other objects
