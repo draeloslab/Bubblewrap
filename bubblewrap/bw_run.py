@@ -75,7 +75,7 @@ class BWRun:
                 self.bw.grad_Q()
 
                 if self.behavior_regressor:
-                    self.behavior_regressor.lazy_observe(self.bw.alpha, beh)
+                    self.behavior_regressor.safe_observe(self.bw.alpha, beh)
                 self.log_for_step(step, offset_pairs)
 
         if save:

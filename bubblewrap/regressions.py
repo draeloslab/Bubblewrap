@@ -1,4 +1,5 @@
 import numpy as np
+from collections import deque
 
 def rank_one_update_formula1(D, x1, x2=None):
     if x2 is None:
@@ -10,13 +11,19 @@ class OnlineRegressor:
         self.input_d = input_d
         self.output_d = output_d
 
-    def initialize(self, use_stored, x, y):
+    def initialize(self, use_stored=True, x_history=None, y_history=None):
+        """This is called when the algorithm has enough information to start making predictions; it initializes the
+        regression. Usually use_stored will be true, and the algorithm will use previously observed data, but x and y
+        can also be passed in as the initialization data."""
         pass
 
-    def lazy_observe(self, x, y):
+    def safe_observe(self, x, y):
+        """This function saves an observation and possibly updates internal parameters if the regressor has seen enough
+        data."""
         pass
 
-    def update(self, x, y):
+    def observe(self, x, y):
+        """This is the function called after observing a data point; usually you want lazy_observe."""
         pass
 
     def predict(self, x):
@@ -24,7 +31,7 @@ class OnlineRegressor:
 
 
 class SymmetricNoisyRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, forgetting_factor, noise_scale, n_perturbations=1, seed=24, init_min_ratio=3):
+    def __init__(self, input_d, output_d, forgetting_factor=1-(1e-2), noise_scale=1e-5, n_perturbations=1, seed=24, init_min_ratio=3):
         super().__init__(input_d, output_d)
 
         if n_perturbations < 1:
@@ -46,13 +53,13 @@ class SymmetricNoisyRegressor(OnlineRegressor):
         self.init_min_ratio = init_min_ratio
         self.n_observed = 0
 
-    def initialize(self, use_stored=True, x=None, y=None):
+    def initialize(self, use_stored=True, x_history=None, y_history=None):
         if not use_stored:
-            for i in np.arange(x.shape[0]):
-                self.update(x=x[i], y=y[i], update_D=False)
+            for i in np.arange(x_history.shape[0]):
+                self.observe(x=x_history[i], y=y_history[i], update_D=False)
         self.D = np.linalg.pinv(self.F)
 
-    def update(self, x, y, update_D=False):
+    def observe(self, x, y, update_D=False):
         x = x.reshape([-1,1])
         y = np.squeeze(y)
         if update_D:
@@ -74,12 +81,12 @@ class SymmetricNoisyRegressor(OnlineRegressor):
 
         self.n_observed += 1
 
-    def lazy_observe(self, x, y):
+    def safe_observe(self, x, y):
         x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
-            self.update(x, y, update_D=True)
+            self.observe(x, y, update_D=True)
         else:
-            self.update(x, y, update_D=False)
+            self.observe(x, y, update_D=False)
             if self.n_observed >= self.init_min_ratio * self.input_d:
                 self.initialize()
 
@@ -169,8 +176,8 @@ class SymmetricNoisyRegressor(OnlineRegressor):
 #         return np.squeeze(x.T @ w)
 
 
-class WindowRegression(OnlineRegressor):
-    def __init__(self, input_d, output_d,  window_size, init_min_ratio=3):
+class WindowRegressor(OnlineRegressor):
+    def __init__(self, input_d, output_d,  window_size=1_000, init_min_ratio=3):
         super().__init__(input_d, output_d)
 
         # core stuff
@@ -186,14 +193,14 @@ class WindowRegression(OnlineRegressor):
         self.init_min_ratio = init_min_ratio
         self.n_observed = 0
 
-    def initialize(self, use_stored=True, x=None, y=None):
+    def initialize(self, use_stored=True, x_history=None, y_history=None):
         if not use_stored:
-            for i in np.arange(x.shape[0]):
-                self.update(x=x[i], y=y[i], update_D=False)
+            for i in np.arange(x_history.shape[0]):
+                self.observe(x=x_history[i], y=y_history[i], update_D=False)
 
         self.D = np.linalg.pinv(self.F)
 
-    def update(self, x, y, update_D=False):
+    def observe(self, x, y, update_D=False):
         # x and y should not be multiple time-steps big
         x = x.reshape([-1,1])
         y = np.squeeze(y)
@@ -222,12 +229,12 @@ class WindowRegression(OnlineRegressor):
 
         self.n_observed += 1
 
-    def lazy_observe(self, x, y):
+    def safe_observe(self, x, y):
         x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
-            self.update(x, y, update_D=True)
+            self.observe(x, y, update_D=True)
         else:
-            self.update(x, y, update_D=False)
+            self.observe(x, y, update_D=False)
             if self.n_observed >= self.init_min_ratio * self.input_d:
                 self.initialize()
 
@@ -237,6 +244,40 @@ class WindowRegression(OnlineRegressor):
 
         w = self.D @ self.c
         return np.squeeze(x.T @ w)
+
+
+class NearestNeighborRegressor(OnlineRegressor):
+    def __init__(self, input_d, output_d, maxlen=1_000):
+        super().__init__(input_d, output_d)
+        self.maxlen = maxlen
+        self.history = np.zeros(shape=(maxlen, input_d + output_d)) * np.nan
+
+        # index is the next row to write to, increases, and wraps
+        self.index = 0
+
+    def initialize(self, use_stored=True, x_history=None, y_history=None):
+        if use_stored:
+            pass
+        else:
+            assert len(x_history) == len(y_history)
+            # todo: this can be optimized
+            for i in range(len(x_history)):
+                self.observe(x_history[i], y_history[i])
+
+    def safe_observe(self, x, y):
+        self.observe(x,y)
+
+    def observe(self, x, y):
+        self.history[self.index, :self.input_d] = x
+        self.history[self.index, self.input_d:] = y
+        self.index += 1
+        if self.index >= self.history.shape[0]:
+            self.index = 0
+
+    def predict(self, x):
+        distances = np.linalg.norm(self.history[:, :self.input_d] - x, axis=1)
+        idx = np.argmin(distances)
+        return self.history[idx, self.input_d:]
 
 
 """

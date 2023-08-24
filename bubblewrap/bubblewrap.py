@@ -4,7 +4,7 @@ import time
 from collections import deque
 from jax import jit, grad, vmap
 from jax import nn, random
-from .regressions import WindowRegression, SymmetricNoisyRegressor
+from .regressions import WindowRegressor, SymmetricNoisyRegressor
 
 
 # todo: make this a parameter
