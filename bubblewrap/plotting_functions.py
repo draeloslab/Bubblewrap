@@ -73,77 +73,77 @@ def show_active_bubbles_2d(ax, data, bw):
         ax.text(mu[n,0] + .25*d,mu[n,1] + .25*d,str(n), alpha=min(opacities[i] * 2,1), clip_on=True)
 
 
-def br_plot_3d(br):
-    # TODO: make a plot_3d like above
-    fig = plt.figure()
-    ax = plt.axes(projection="3d")
-
-    # Set of all spherical angles to draw our ellipsoid
-    n_points = 10
-    theta = np.linspace(0, 2*np.pi, n_points)
-    phi = np.linspace(0, np.pi, n_points)
-
-    # Get the xyz points for plotting
-    # Cartesian coordinates that correspond to the spherical angles:
-    X = np.outer(np.cos(theta), np.sin(phi))
-    Y = np.outer(np.sin(theta), np.sin(phi)).flatten()
-    Z = np.outer(np.ones_like(theta), np.cos(phi)).flatten()
-    old_shape = X.shape
-    X = X.flatten()
-
-
-    s = np.load(br.file)
-    data = s['y'][0]
-
-    A = br.A
-    mu = br.mu
-    L = br.L
-    n_obs = br.n_obs
-
-    # TODO: make these not lists
-    pred = br.pred_list[:,0]
-    entropy = br.entropy_list[:,0]
-
-    ax.plot(data[:,0], data[:,1], data[:,2], color='gray', alpha=0.8)
-    for n in np.arange(A.shape[0]):
-        if n_obs[n] > 1e-4:
-            el = np.linalg.inv(L[n]).T
-            sig = el @ el.T
-            # Find and sort eigenvalues to correspond to the covariance matrix
-            eigvals, eigvecs = np.linalg.eigh(sig)
-            idx = np.sum(sig,axis=0).argsort()
-            eigvals_temp = eigvals[idx]
-            idx = eigvals_temp.argsort()
-            eigvals = eigvals[idx]
-            eigvecs = eigvecs[:,idx]
-
-            # Width, height and depth of ellipsoid
-            nstd = 3
-            rx, ry, rz = nstd * np.sqrt(eigvals)
-
-            # Rotate ellipsoid for off axis alignment
-            a,b,c = np.matmul(eigvecs, np.array([X*rx,Y*ry,Z*rz]))
-            a,b,c = a.reshape(old_shape), b.reshape(old_shape), c.reshape(old_shape)
-
-            # Add in offsets for the mean
-            a = a + mu[n,0]
-            b = b + mu[n,1]
-            c = c + mu[n,2]
-
-            ax.plot_surface(a, b, c, color='#ff4400', alpha=0.6)
-
-    ax.view_init(40,23)
-
-    mask = np.ones(mu.shape[0], dtype=bool)
-    mask[n_obs<1e-4] = False
-    ax.scatter(mu[mask,0], mu[mask,1], mu[mask,2], c='k' , zorder=10)
-
-    ax.set_xticks([200, 600, 1000, 1400])
-    ax.set_yticks([-20, -10, 0, 10])
-    ax.set_zticks([-1400, -1000, -600, -200])
-    in1, in2 = 0, 1
-    ax.text(in1, in2, 100, s='b', transform=ax.transAxes, fontsize=16, fontweight='bold', va='top', ha='right')
-    plt.show()
+# def br_plot_3d(br):
+#     # TODO: make a plot_3d like above
+#     fig = plt.figure()
+#     ax = plt.axes(projection="3d")
+#
+#     # Set of all spherical angles to draw our ellipsoid
+#     n_points = 10
+#     theta = np.linspace(0, 2*np.pi, n_points)
+#     phi = np.linspace(0, np.pi, n_points)
+#
+#     # Get the xyz points for plotting
+#     # Cartesian coordinates that correspond to the spherical angles:
+#     X = np.outer(np.cos(theta), np.sin(phi))
+#     Y = np.outer(np.sin(theta), np.sin(phi)).flatten()
+#     Z = np.outer(np.ones_like(theta), np.cos(phi)).flatten()
+#     old_shape = X.shape
+#     X = X.flatten()
+#
+#
+#     s = np.load(br.file)
+#     data = s['y'][0]
+#
+#     A = br.A
+#     mu = br.mu
+#     L = br.L
+#     n_obs = br.n_obs
+#
+#     # TODO: make these not lists
+#     pred = br.pred_list[:,0]
+#     entropy = br.entropy_list[:,0]
+#
+#     ax.plot(data[:,0], data[:,1], data[:,2], color='gray', alpha=0.8)
+#     for n in np.arange(A.shape[0]):
+#         if n_obs[n] > 1e-4:
+#             el = np.linalg.inv(L[n]).T
+#             sig = el @ el.T
+#             # Find and sort eigenvalues to correspond to the covariance matrix
+#             eigvals, eigvecs = np.linalg.eigh(sig)
+#             idx = np.sum(sig,axis=0).argsort()
+#             eigvals_temp = eigvals[idx]
+#             idx = eigvals_temp.argsort()
+#             eigvals = eigvals[idx]
+#             eigvecs = eigvecs[:,idx]
+#
+#             # Width, height and depth of ellipsoid
+#             nstd = 3
+#             rx, ry, rz = nstd * np.sqrt(eigvals)
+#
+#             # Rotate ellipsoid for off axis alignment
+#             a,b,c = np.matmul(eigvecs, np.array([X*rx,Y*ry,Z*rz]))
+#             a,b,c = a.reshape(old_shape), b.reshape(old_shape), c.reshape(old_shape)
+#
+#             # Add in offsets for the mean
+#             a = a + mu[n,0]
+#             b = b + mu[n,1]
+#             c = c + mu[n,2]
+#
+#             ax.plot_surface(a, b, c, color='#ff4400', alpha=0.6)
+#
+#     ax.view_init(40,23)
+#
+#     mask = np.ones(mu.shape[0], dtype=bool)
+#     mask[n_obs<1e-4] = False
+#     ax.scatter(mu[mask,0], mu[mask,1], mu[mask,2], c='k' , zorder=10)
+#
+#     ax.set_xticks([200, 600, 1000, 1400])
+#     ax.set_yticks([-20, -10, 0, 10])
+#     ax.set_zticks([-1400, -1000, -600, -200])
+#     in1, in2 = 0, 1
+#     ax.text(in1, in2, 100, s='b', transform=ax.transAxes, fontsize=16, fontweight='bold', va='top', ha='right')
+#     plt.show()
 
 def show_A(ax, bw):
     ax.cla()
@@ -157,14 +157,14 @@ def show_A(ax, bw):
     live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
     ax.set_yticks(live_nodes)
 
-def show_Ct_y(ax, regressor):
-    old_ylim = ax.get_ylim()
-    ax.cla()
-    ax.plot(regressor.Ct_y, '.-')
-    ax.set_title("Ct_y")
-
-    new_ylim = ax.get_ylim()
-    ax.set_ylim([min(old_ylim[0], new_ylim[0]), max(old_ylim[1], new_ylim[1])])
+# def show_Ct_y(ax, regressor):
+#     old_ylim = ax.get_ylim()
+#     ax.cla()
+#     ax.plot(regressor.Ct_y, '.-')
+#     ax.set_title("Ct_y")
+#
+#     new_ylim = ax.get_ylim()
+#     ax.set_ylim([min(old_ylim[0], new_ylim[0]), max(old_ylim[1], new_ylim[1])])
 
 
 def show_alpha(ax, br):
@@ -260,21 +260,21 @@ def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
 
     ax.set_title(f"{offset}-step pred.")
 
-def show_w_sideways(ax, bw, current_behavior):
-    ax.cla()
-    w = np.array(bw.D @ bw.Ct_y)
-    w[bw.dead_nodes] = 0
-
-    a = np.array(bw.alpha)
-    a = a / np.max(a)
-    ax.plot(w, np.arange(w.size), alpha=0.25)
-    ax.scatter(w, np.arange(w.size), alpha=a, c="C0")
-    ylim = ax.get_ylim()
-    ax.vlines(current_behavior[0], alpha=.5, ymin=ylim[0], ymax=ylim[1], colors="C1" )
-    ax.set_ylabel("bubble #")
-    ax.set_xlabel("weight magnitude")
-    ax.set_title(r"Weights (times $\alpha$)")
-    ax.set_xlim([-21, 21])
+# def show_w_sideways(ax, bw, current_behavior):
+#     ax.cla()
+#     w = np.array(bw.D @ bw.Ct_y)
+#     w[bw.dead_nodes] = 0
+#
+#     a = np.array(bw.alpha)
+#     a = a / np.max(a)
+#     ax.plot(w, np.arange(w.size), alpha=0.25)
+#     ax.scatter(w, np.arange(w.size), alpha=a, c="C0")
+#     ylim = ax.get_ylim()
+#     ax.vlines(current_behavior[0], alpha=.5, ymin=ylim[0], ymax=ylim[1], colors="C1" )
+#     ax.set_ylabel("bubble #")
+#     ax.set_xlabel("weight magnitude")
+#     ax.set_title(r"Weights (times $\alpha$)")
+#     ax.set_xlim([-21, 21])
 
 
 def _one_sided_ewma(data, com=100):

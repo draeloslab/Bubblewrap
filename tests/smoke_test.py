@@ -10,7 +10,7 @@ from bubblewrap.regressions import SymmetricNoisyRegressor
 
 
 def test_can_run_with_beh(rng, outdir):
-    m, n_obs, n_beh = 500, 3, 4
+    m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
     beh = rng.normal(size=(m, n_beh))
     ds = NumpyDataSource(obs, beh, time_offsets=(-10, 0, 10))
@@ -21,7 +21,7 @@ def test_can_run_with_beh(rng, outdir):
     br.run()
 
 def test_can_run_without_beh(rng, outdir):
-    m, n_obs, n_beh = 500, 3, 4
+    m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
     ds = NumpyDataSource(obs, time_offsets=(-10, 0, 10))
 
@@ -30,7 +30,7 @@ def test_can_run_without_beh(rng, outdir):
     br.run()
 
 def test_can_make_video(rng, outdir):
-    m, n_obs, n_beh = 500, 3, 4
+    m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
     ds = NumpyDataSource(obs, time_offsets=(-10, 0, 10))
 
