@@ -1,11 +1,11 @@
 import numpy as np
 
-from bubblewrap.input_sources import NumpyDataSource, HMMSimDataSource, HMM
-from bubblewrap.input_sources.numpy_data_source import DataSource
+from bubblewrap.input_sources import NumpyDataSource, HMMSimDataSource, HMM, ProSVDDataSource
+from bubblewrap.input_sources.data_sources import DataSource
 import pytest
 
 
-@pytest.fixture(params=["numpy", "hmm"])
+@pytest.fixture(params=["numpy", "hmm", "pro"])
 def ds(rng, request):
     m = 500
     if request.param == "numpy":
@@ -17,6 +17,15 @@ def ds(rng, request):
         hmm = HMM.gaussian_clock_hmm(20, p1=.9, angle=0, variance_scale=2, radius=10)
         return HMMSimDataSource(hmm, seed=0, length=m, time_offsets=(-10, -1, 0, 10))
 
+    elif request.param == "pro":
+        init_size = 100
+        t = np.linspace(0,30*np.pi, m + init_size)
+        obs = np.vstack([np.sin(t), np.cos(t)]).T
+        ds = NumpyDataSource(obs, np.mod(t, np.pi))
+
+        return ProSVDDataSource(input_source=ds, output_d=1, init_size=init_size, time_offsets=(-10, -1, 0, 10))
+
+# todo: test with no time_offset
 
 def test_can_run(ds):
     ds: DataSource
