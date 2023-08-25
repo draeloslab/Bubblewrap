@@ -11,14 +11,14 @@ import warnings
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .input_sources import NumpyDataSource
+    from .input_sources import NumpyPairedDataSource
     from .regressions import OnlineRegressor
 
 
 class BWRun:
     def __init__(self, bw, data_source, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True, output_directory="generated/bubblewrap_runs"):
         # todo: add total runtime tracker
-        self.data_source: NumpyDataSource = data_source
+        self.data_source: NumpyPairedDataSource = data_source
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
 

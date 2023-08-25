@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from bubblewrap import Bubblewrap, NumpyDataSource, BWRun, SymmetricNoisyRegressor, default_clock_parameters
+from bubblewrap import Bubblewrap, NumpyPairedDataSource, BWRun, SymmetricNoisyRegressor, default_clock_parameters
 
 @pytest.fixture
 def outdir(tmpdir):
@@ -20,7 +20,7 @@ def make_br(rng, outdir):
         m, n_obs, n_beh = 200, 2, 3
         obs = rng.normal(size=(m, n_obs))
         beh = rng.normal(size=(m, n_beh))
-        ds = NumpyDataSource(obs, beh, time_offsets=(3, 0, 3))
+        ds = NumpyPairedDataSource(obs, beh, time_offsets=(3, 0, 3))
 
         bw = Bubblewrap(n_obs, **default_clock_parameters)
         reg = SymmetricNoisyRegressor(bw.N, n_beh, forgetting_factor=1 - (1e-2), noise_scale=1e-5)

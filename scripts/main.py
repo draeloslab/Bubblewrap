@@ -1,5 +1,5 @@
 import numpy as np
-from bubblewrap import Bubblewrap, BWRun, NumpyDataSource, AnimationManager, default_clock_parameters, SymmetricNoisyRegressor
+from bubblewrap import Bubblewrap, BWRun, NumpyPairedDataSource, AnimationManager, default_clock_parameters, SymmetricNoisyRegressor
 from bubblewrap.input_sources import HMM, HMMSimDataSource
 import bubblewrap.plotting_functions as bpf
 
