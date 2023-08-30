@@ -32,7 +32,8 @@ def test_can_run_without_beh(rng, outdir):
 def test_can_make_video(rng, outdir):
     m, n_obs, n_beh = 150, 3, 4
     obs = rng.normal(size=(m, n_obs))
-    ds = NumpyPairedDataSource(obs, time_offsets=(-10, 0, 10))
+    beh = rng.normal(size=(m, n_beh))
+    ds = NumpyPairedDataSource(obs, beh, time_offsets=(-10, 0, 10))
 
     class CustomAnimation(AnimationManager):
         n_rows = 1

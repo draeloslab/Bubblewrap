@@ -1,18 +1,22 @@
 import matplotlib.pyplot as plt
 import bubblewrap.plotting_functions as bpf
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from bubblewrap.bw_run import BWRun
+
 
 
 def test_axis_plots(make_br):
 
     fig, axs = plt.subplots(nrows=1, ncols=2)
     ax = axs[0]
-    br = make_br()
+    br:BWRun = make_br()
     bw = br.bw
     obs, beh = br.data_source.get_history()
 
     offset = 3
-    predicted_location, _ = br.data_source.get_atemporal_data_pair(offset=offset)
+    predicted_location, _ = br.data_source.get_atemporal_data_point(offset=offset)
 
     ### good ###
     bpf.show_bubbles_2d(ax, obs, bw)

@@ -11,20 +11,20 @@ import warnings
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .input_sources import NumpyPairedDataSource
+    from .input_sources.data_sources import NumpyPairedDataSource, ConsumableDataSource
     from .regressions import OnlineRegressor
 
 
 class BWRun:
     def __init__(self, bw, data_source, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True, output_directory="generated/bubblewrap_runs"):
         # todo: add total runtime tracker
-        self.data_source: NumpyPairedDataSource = data_source
+        self.data_source: ConsumableDataSource = data_source
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
 
         # only keep a behavior regressor if there is behavior
         self.behavior_regressor = None
-        if self.data_source.get_pair_shapes()[1] > 0:
+        if self.data_source.output_shape[1] > 0:
             self.behavior_regressor: OnlineRegressor = behavior_regressor
 
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -50,7 +50,7 @@ class BWRun:
 
         self.saved = False
 
-        obs_dim, beh_dim = data_source.get_pair_shapes()
+        obs_dim, beh_dim = self.data_source.output_shape
         assert obs_dim == self.bw.d
         if self.behavior_regressor:
             assert beh_dim == self.behavior_regressor.output_d
@@ -61,7 +61,7 @@ class BWRun:
             warnings.warn("Data length shorter than initialization.")
 
         f = tqdm if self.show_tqdm else lambda x: x
-        for step, (obs, beh, offset_pairs) in enumerate(f(self.data_source)):
+        for step, (obs, beh, offset_pairs) in enumerate(f(self.data_source.triples())):
             self.bw.observe(obs)
 
             if step < self.bw.M:

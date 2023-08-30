@@ -251,8 +251,8 @@ def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
     cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T)
     fig.colorbar(cmesh)
 
-    current_location, _ = br.data_source.get_atemporal_data_pair(0)
-    offset_location, _ = br.data_source.get_atemporal_data_pair(offset)
+    current_location, _ = br.data_source.get_atemporal_data_point(0)
+    offset_location, _ = br.data_source.get_atemporal_data_point(offset)
 
     ax.scatter(offset_location[0], offset_location[1], c='white')
 
