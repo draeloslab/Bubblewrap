@@ -275,9 +275,12 @@ class NearestNeighborRegressor(OnlineRegressor):
             self.index = 0
 
     def predict(self, x):
-        distances = np.linalg.norm(self.history[:, :self.input_d] - x[:,0], axis=1)
-        idx = np.nanargmin(distances)
-        return self.history[idx, self.input_d:]
+        distances = np.linalg.norm(self.history[:, :self.input_d] - x, axis=1)
+        try:
+            idx = np.nanargmin(distances)
+            return self.history[idx, self.input_d:]
+        except ValueError:
+            return np.nan * np.empty(shape=(self.output_d,))
 
 
 """

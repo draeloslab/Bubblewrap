@@ -69,7 +69,7 @@ def test_prosvd_synced():
     assert np.allclose(aa,bb)
 
 def test_can_load_file():
-    obs, beh = NumpyDataSource.get_from_saved_npz("jpca_reduced.npz")
+    obs, beh = NumpyDataSource.get_from_saved_npz("jpca_reduced.npz", time_offsets=())
 
 def test_can_concatenate():
     a = NumpyDataSource([1,2,3])

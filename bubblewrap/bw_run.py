@@ -57,10 +57,16 @@ class BWRun:
         # note that if there is no behavior, the behavior dimensions will be zero
 
     def run(self, save=True, limit=None):
+
         if len(self.data_source) < self.bw.M:
             warnings.warn("Data length shorter than initialization.")
 
-        generator = tqdm(self.data_source.triples(limit=limit), total=min(len(self.data_source), limit)) if self.show_tqdm else self.data_source.triples(limit=limit)
+        if limit is None:
+            limit = len(self.data_source)
+        limit = min(len(self.data_source), limit)
+
+        # todo: make a wrapper around data streams that works with TQDM
+        generator = tqdm(self.data_source.triples(limit=limit), total=limit) if self.show_tqdm else self.data_source.triples(limit=limit)
         for step, (obs, beh, offset_pairs) in enumerate(generator):
             self.bw.observe(obs)
 
