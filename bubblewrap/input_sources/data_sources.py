@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from .hmm_simulation import HMM
 
 
+dataset_base_path = "/home/jgould/Documents/Bubblewrap/generated/datasets/"
+
 class DataSource(ABC):
     def __init__(self, output_shape, time_offsets=()):
         self.length = None
@@ -94,6 +96,41 @@ class PairWrapperSource(ConsumableDataSource):
         return self.obs.get_history(), self.beh.get_history()
 
 
+class ConcatenatorSource(DataSource):
+    def __init__(self, inputs):
+        self.inputs: list[DataSource] = inputs
+        output_shape = 0
+        for input in self.inputs:
+            assert isinstance(input.output_shape, int)
+            assert input.time_offsets == inputs[0].time_offsets
+            assert len(input) == len(inputs[0])
+            output_shape += input.output_shape
+        super().__init__(output_shape, time_offsets=inputs[0].time_offsets)
+        self.length = len(inputs[0])
+
+    def __next__(self):
+        nexts = [next(i) for i in self.inputs]
+        return np.hstack(nexts)
+
+    def get_atemporal_data_point(self, offset=0):
+        pts = [i.get_atemporal_data_point(offset) for i in self.inputs]
+        return np.hstack(pts)
+
+    def get_history(self, depth=None):
+        pts = [i.get_history(depth) for i in self.inputs]
+        return np.hstack(pts)
+
+    def shorten(self, n):
+        for i in self.inputs:
+            i.shorten(n)
+        self.length -= n
+
+    def __iter__(self):
+        return self
+
+
+
+
 class StreamDataSource(DataSource, ABC):
     def __init__(self, output_shape, time_offsets=(), min_memory_radius=500):
         super().__init__(output_shape, time_offsets)
@@ -148,7 +185,7 @@ class StreamDataSource(DataSource, ABC):
 
 
 class HMMSimDataSource(StreamDataSource, ConsumableDataSource):
-    def __init__(self, hmm, seed, length=int(1e4), time_offsets=()):
+    def __init__(self, hmm, seed, length, time_offsets=()):
         super().__init__(output_shape=(hmm.emission_model.embedded_dimension, 1), time_offsets=time_offsets)
 
         self.hmm: HMM = hmm
@@ -174,7 +211,10 @@ class HMMSimDataSource(StreamDataSource, ConsumableDataSource):
 
 class NumpyDataSource(DataSource):
     def __init__(self, a, time_offsets=()):
-        super().__init__(output_shape=(len(a[0]),), time_offsets=time_offsets)
+        a = np.array(a)
+        if len(a.shape) == 1:
+            a = a[:,None]
+        super().__init__(output_shape=len(a[0]), time_offsets=time_offsets)
         self.a = a
 
         self.clear_range = (0, len(a))
@@ -183,6 +223,19 @@ class NumpyDataSource(DataSource):
 
         self.length = self.clear_range[1] - self.clear_range[0]
         self.index = 0
+
+    def drop_time_offsets(self):
+        return NumpyDataSource(self.a)
+
+    @staticmethod
+    def get_from_saved_npz(path, time_offsets):
+        dataset = np.load(dataset_base_path + path)
+        beh = NumpyDataSource(dataset['x'], time_offsets=time_offsets)
+        if len(dataset['y'].shape) == 3:
+            obs = NumpyDataSource(dataset['y'][0], time_offsets=time_offsets)
+        else:
+            obs = NumpyDataSource(dataset['y'], time_offsets=time_offsets)
+        return obs, beh
 
     def shorten(self, n):
         self.clear_range = (self.clear_range[0] + n, self.clear_range[1])
@@ -294,7 +347,7 @@ class NumpyPairedDataSource(ConsumableDataSource):
 
 class ProSVDDataSource(StreamDataSource):
     def __init__(self, input_source, output_d, init_size=100, min_memory_radius=500, time_offsets=()):
-        super().__init__(output_shape=(output_d,), time_offsets=time_offsets, min_memory_radius=min_memory_radius)
+        super().__init__(output_shape=output_d, time_offsets=time_offsets, min_memory_radius=min_memory_radius)
         self.output_d = output_d
         self.input_source: DataSource = input_source
         assert len(self.input_source.time_offsets) == 0

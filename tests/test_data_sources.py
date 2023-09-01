@@ -1,7 +1,7 @@
 import numpy as np
 
 from bubblewrap.input_sources import NumpyPairedDataSource, HMMSimDataSource, HMM, ProSVDDataSource
-from bubblewrap.input_sources.data_sources import ConsumableDataSource, PairWrapperSource, NumpyDataSource
+from bubblewrap.input_sources.data_sources import ConsumableDataSource, PairWrapperSource, NumpyDataSource, ConcatenatorSource
 import pytest
 
 
@@ -67,6 +67,19 @@ def test_prosvd_synced():
     p = PairWrapperSource(b, a)
     aa, bb = next(p)
     assert np.allclose(aa,bb)
+
+def test_can_load_file():
+    obs, beh = NumpyDataSource.get_from_saved_npz("jpca_reduced.npz")
+
+def test_can_concatenate():
+    a = NumpyDataSource([1,2,3])
+    b = NumpyDataSource([4,5,6])
+    c = NumpyDataSource([7,8,9])
+    d = ConcatenatorSource([a,b])
+    ds = PairWrapperSource(c,d)
+    n = next(ds)
+    assert np.all(n[0] == np.array([7]))
+    assert np.all(n[1] == np.array([1,4]))
 
 def test_reusable(ds):
     pass

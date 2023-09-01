@@ -275,8 +275,8 @@ class NearestNeighborRegressor(OnlineRegressor):
             self.index = 0
 
     def predict(self, x):
-        distances = np.linalg.norm(self.history[:, :self.input_d] - x, axis=1)
-        idx = np.argmin(distances)
+        distances = np.linalg.norm(self.history[:, :self.input_d] - x[:,0], axis=1)
+        idx = np.nanargmin(distances)
         return self.history[idx, self.input_d:]
 
 

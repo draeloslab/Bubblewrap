@@ -56,12 +56,12 @@ class BWRun:
             assert beh_dim == self.behavior_regressor.output_d
         # note that if there is no behavior, the behavior dimensions will be zero
 
-    def run(self, save=True):
+    def run(self, save=True, limit=None):
         if len(self.data_source) < self.bw.M:
             warnings.warn("Data length shorter than initialization.")
 
-        f = tqdm if self.show_tqdm else lambda x: x
-        for step, (obs, beh, offset_pairs) in enumerate(f(self.data_source.triples())):
+        generator = tqdm(self.data_source.triples(limit=limit), total=min(len(self.data_source), limit)) if self.show_tqdm else self.data_source.triples(limit=limit)
+        for step, (obs, beh, offset_pairs) in enumerate(generator):
             self.bw.observe(obs)
 
             if step < self.bw.M:
@@ -127,7 +127,6 @@ class BWRun:
 
         self.bw.freeze()
 
-
     def save(self,  freeze=True):
         self.saved = True
         if freeze:
@@ -144,7 +143,7 @@ class AnimationManager:
     n_cols = 2
     fps = 20
     dpi = 100
-    outfile = "generated/movie.mp4"
+    outfile = "./movie.mp4"
     def __init__(self):
         self.movie_writer = FFMpegFileWriter(fps=self.fps)
         self.fig, self.ax = plt.subplots(self.n_rows, self.n_cols, figsize=(10, 10), layout='tight')

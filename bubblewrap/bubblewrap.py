@@ -246,24 +246,9 @@ class Bubblewrap():
         self.obs.freeze()
 
     def __getstate__(self):
-        to_save = {}
-        _pickle_changes = []
-        for key, value in self.__dict__.items():
-            if callable(value) and "jit" in str(value):
-                _pickle_changes.append((key, "callable"))
-                continue
-
-            elif self.frozen and "jax" in str(type(value)) and "Array" in str(type(value)):
-                to_save[key] = np.array(value)
-                _pickle_changes.append((key, "unjaxed"))
-            else:
-                to_save[key] = value
-
-        to_save["_pickle_changes"] = _pickle_changes
-        return to_save
+        return _unjax_state(self)
 
     def __setstate__(self, state):
-        del state["_pickle_changes"]
         self.__dict__.update(state)
         if not state["frozen"]:
             self._add_jited_functions()
@@ -403,6 +388,8 @@ class Observations:
         
         self.n_obs = 0
 
+        self.frozen = False
+
     def new_obs(self, coord_new):
         self.curr = coord_new
         self.saved_obs.append(self.curr)
@@ -422,10 +409,28 @@ class Observations:
                     self.cov = update_cov(self.cov, self.last_mean, self.curr, self.mean, self.n_obs)
 
     def freeze(self):
-        self.curr = np.array(self.curr)
-        self.last_mean = np.array(self.last_mean)
-        self.mean = np.array(self.mean)
+        self.frozen = True
 
+    def __getstate__(self):
+        return _unjax_state(self)
+
+
+def _unjax_state(self):
+    to_save = {}
+    _pickle_changes = []
+    for key, value in self.__dict__.items():
+        if callable(value) and "jit" in str(value):
+            _pickle_changes.append((key, "callable"))
+            continue
+
+        elif self.frozen and "jax" in str(type(value)) and "Array" in str(type(value)):
+            to_save[key] = numpy.array(value)
+            _pickle_changes.append((key, "unjaxed"))
+        else:
+            to_save[key] = value
+
+    to_save["_pickle_changes"] = _pickle_changes
+    return to_save
 
 @jit 
 def update_mean(mean, curr, n_obs):
