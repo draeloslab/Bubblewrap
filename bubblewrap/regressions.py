@@ -1,10 +1,12 @@
 import numpy as np
 from collections import deque
 
+
 def rank_one_update_formula1(D, x1, x2=None):
     if x2 is None:
         x2 = x1
     return D - (D @ x1 @ x2.T @ D) / (1 + x2.T @ D @ x1)
+
 
 class OnlineRegressor:
     def __init__(self, input_d, output_d):
@@ -31,7 +33,8 @@ class OnlineRegressor:
 
 
 class SymmetricNoisyRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, forgetting_factor=1-(1e-2), noise_scale=1e-5, n_perturbations=1, seed=24, init_min_ratio=3):
+    def __init__(self, input_d, output_d, forgetting_factor=1 - (1e-2), noise_scale=1e-5, n_perturbations=1, seed=24,
+                 init_min_ratio=3):
         super().__init__(input_d, output_d)
 
         if n_perturbations < 1:
@@ -60,7 +63,7 @@ class SymmetricNoisyRegressor(OnlineRegressor):
         self.D = np.linalg.pinv(self.F)
 
     def observe(self, x, y, update_D=False):
-        x = x.reshape([-1,1])
+        x = x.reshape([-1, 1])
         y = np.squeeze(y)
         if update_D:
             self.D /= self.forgetting_factor
@@ -92,7 +95,7 @@ class SymmetricNoisyRegressor(OnlineRegressor):
 
     def predict(self, x):
         if self.D is None:
-            return np.nan * np.ones(shape=[self.output_d,])
+            return np.nan * np.ones(shape=[self.output_d, ])
 
         w = self.D @ self.c
         return np.squeeze(x.T @ w)
@@ -177,7 +180,7 @@ class SymmetricNoisyRegressor(OnlineRegressor):
 
 
 class WindowRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d,  window_size=1_000, init_min_ratio=3):
+    def __init__(self, input_d, output_d, window_size=1_000, init_min_ratio=3):
         super().__init__(input_d, output_d)
 
         # core stuff
@@ -202,7 +205,7 @@ class WindowRegressor(OnlineRegressor):
 
     def observe(self, x, y, update_D=False):
         # x and y should not be multiple time-steps big
-        x = x.reshape([-1,1])
+        x = x.reshape([-1, 1])
         y = np.squeeze(y)
 
         # trim windows
@@ -214,7 +217,7 @@ class WindowRegressor(OnlineRegressor):
                 self.D = rank_one_update_formula1(self.D, removed_x, -removed_x)
             else:
                 self.F -= removed_x @ removed_x.T
-            self.c -= removed_x @ removed_y.reshape([-1,self.output_d])
+            self.c -= removed_x @ removed_y.reshape([-1, self.output_d])
 
         self.x_window.append(x)
         self.y_window.append(y)
@@ -224,8 +227,7 @@ class WindowRegressor(OnlineRegressor):
             self.D = rank_one_update_formula1(self.D, x)
         else:
             self.F += x @ x.T
-        self.c += x @ y.reshape([-1,self.output_d])
-
+        self.c += x @ y.reshape([-1, self.output_d])
 
         self.n_observed += 1
 
@@ -240,7 +242,7 @@ class WindowRegressor(OnlineRegressor):
 
     def predict(self, x):
         if self.D is None:
-            return np.nan * np.ones(shape=[self.output_d,])
+            return np.nan * np.ones(shape=[self.output_d, ])
 
         w = self.D @ self.c
         return np.squeeze(x.T @ w)
@@ -265,7 +267,7 @@ class NearestNeighborRegressor(OnlineRegressor):
                 self.observe(x_history[i], y_history[i])
 
     def safe_observe(self, x, y):
-        self.observe(x,y)
+        self.observe(x, y)
 
     def observe(self, x, y):
         self.history[self.index, :self.input_d] = x
@@ -275,12 +277,12 @@ class NearestNeighborRegressor(OnlineRegressor):
             self.index = 0
 
     def predict(self, x):
-        distances = np.linalg.norm(self.history[:, :self.input_d] - x, axis=1)
+        distances = np.linalg.norm(self.history[:, :self.input_d] - np.squeeze(x), axis=1)
         try:
             idx = np.nanargmin(distances)
-            return self.history[idx, self.input_d:]
         except ValueError:
             return np.nan * np.empty(shape=(self.output_d,))
+        return self.history[idx, self.input_d:]
 
 
 """

@@ -6,36 +6,39 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import bubblewrap
+    from bubblewrap import BWRun
 
-def show_bubbles_2d(ax, data, bw):
+
+def show_bubbles_2d(ax, data, bw, alpha_coefficient=1):
     A = bw.A
     mu = bw.mu
     L = bw.L
     n_obs = np.array(bw.n_obs)
     ax.cla()
-    ax.scatter(data[:,0], data[:,1], s=5, color='#004cff', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
-    for n in np.arange(A.shape[0]):
+    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
+               alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
+    for n in reversed(np.arange(A.shape[0])):
         if n not in bw.dead_nodes:
             el = np.linalg.inv(L[n])
             sig = el.T @ el
-            u,s,v = np.linalg.svd(sig)
-            width, height = np.sqrt(s[0])*3, np.sqrt(s[1])*3
-            angle = atan2(v[0,1],v[0,0])*360 / (2*np.pi)
-            el = Ellipse((mu[n,0], mu[n,1]), width, height, angle=angle, zorder=8)
-            el.set_alpha(0.4)
+            u, s, v = np.linalg.svd(sig)
+            width, height = np.sqrt(s[0]) * 3, np.sqrt(s[1]) * 3
+            angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
+            el = Ellipse((mu[n, 0], mu[n, 1]), width, height, angle=angle, zorder=8)
+            el.set_alpha(0.4 * alpha_coefficient)
             el.set_clip_box(ax.bbox)
             el.set_facecolor('#ed6713')
             ax.add_artist(el)
-            d = min(width,height)
-            ax.text(mu[n,0] + .5*d,mu[n,1] +.5*d,str(n), clip_on=True)
+            d = min(width, height)
+            ax.text(mu[n, 0] + .5 * d, mu[n, 1] + .5 * d, str(n), clip_on=True)
         else:
             el = np.linalg.inv(L[n])
             sig = el.T @ el
-            u,s,v = np.linalg.svd(sig)
-            width, height = np.sqrt(s[0])*3, np.sqrt(s[1])*3
-            angle = atan2(v[0,1],v[0,0])*360 / (2*np.pi)
-            el = Ellipse((mu[n,0], mu[n,1]), width, height, angle=angle, zorder=8)
-            el.set_alpha(0.05)
+            u, s, v = np.linalg.svd(sig)
+            width, height = np.sqrt(s[0]) * 3, np.sqrt(s[1]) * 3
+            angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
+            el = Ellipse((mu[n, 0], mu[n, 1]), width, height, angle=angle, zorder=8)
+            el.set_alpha(0.05 * alpha_coefficient)
             el.set_clip_box(ax.bbox)
             el.set_facecolor('#000000')
             ax.add_artist(el)
@@ -44,33 +47,34 @@ def show_bubbles_2d(ax, data, bw):
     mask[n_obs < .1] = False
     mask[bw.dead_nodes] = False
     ax.scatter(mu[mask, 0], mu[mask, 1], c='k', zorder=10)
-    ax.scatter(data[0,0], data[0,1], color="#004cff", s=10)
+    ax.scatter(data[0, 0], data[0, 1], color="#004cff", s=10)
 
 
 def show_active_bubbles_2d(ax, data, bw):
     mu = bw.mu
     L = bw.L
     ax.cla()
-    ax.scatter(data[:,0], data[:,1], s=5, color='#004cff', alpha=np.power(1-bw.eps, np.arange(data.shape[0], 0, -1)))
-    ax.scatter(data[-1,0], data[-1,1], s=10, color='red')
+    ax.scatter(data[:, 0], data[:, 1], s=5, color='#004cff',
+               alpha=np.power(1 - bw.eps, np.arange(data.shape[0], 0, -1)))
+    ax.scatter(data[-1, 0], data[-1, 1], s=10, color='red')
 
     to_draw = np.argsort(np.array(bw.alpha))[-3:]
     opacities = np.array(bw.alpha)[to_draw]
-    opacities = opacities * .5/opacities.max()
+    opacities = opacities * .5 / opacities.max()
 
     for i, n in enumerate(to_draw):
         el = np.linalg.inv(L[n])
         sig = el.T @ el
-        u,s,v = np.linalg.svd(sig)
-        width, height = np.sqrt(s[0])*3, np.sqrt(s[1])*3
-        angle = atan2(v[0,1],v[0,0])*360 / (2*np.pi)
-        el = Ellipse((mu[n,0], mu[n,1]), width, height, angle=angle, zorder=8)
+        u, s, v = np.linalg.svd(sig)
+        width, height = np.sqrt(s[0]) * 3, np.sqrt(s[1]) * 3
+        angle = atan2(v[0, 1], v[0, 0]) * 360 / (2 * np.pi)
+        el = Ellipse((mu[n, 0], mu[n, 1]), width, height, angle=angle, zorder=8)
         el.set_alpha(opacities[i])
         el.set_clip_box(ax.bbox)
         el.set_facecolor('#ed6713')
         ax.add_artist(el)
-        d = min(width,height)
-        ax.text(mu[n,0] + .25*d,mu[n,1] + .25*d,str(n), alpha=min(opacities[i] * 2,1), clip_on=True)
+        d = min(width, height)
+        ax.text(mu[n, 0] + .25 * d, mu[n, 1] + .25 * d, str(n), alpha=min(opacities[i] * 2, 1), clip_on=True)
 
 
 # def br_plot_3d(br):
@@ -157,6 +161,7 @@ def show_A(ax, bw):
     live_nodes = [x for x in np.arange(bw.N) if x not in bw.dead_nodes]
     ax.set_yticks(live_nodes)
 
+
 # def show_Ct_y(ax, regressor):
 #     old_ylim = ax.get_ylim()
 #     ax.cla()
@@ -179,6 +184,7 @@ def show_alpha(ax, br):
     # ax.set_xticks([0.5,5,10,15,20])
     # ax.set_xticklabels([-20, -15, -10, -5, 0])
 
+
 def show_behavior_variables(ax, br, beh):
     # todo: this function is fragile, maybe delete it?
     ax.cla()
@@ -187,12 +193,14 @@ def show_behavior_variables(ax, br, beh):
     ax.plot(beh[-20:])
     ax.set_title("Behavior prediction")
 
+
 def show_A_eigenspectrum(ax, bw):
     ax.cla()
     eig = np.sort(np.linalg.eigvals(bw.A))[::-1]
     ax.plot(eig, '.')
     ax.set_title("Eigenspectrum of A")
-    ax.set_ylim([0,1])
+    ax.set_ylim([0, 1])
+
 
 def _mean_distance(data, shift=1):
     x = data - data.mean(axis=0)
@@ -201,22 +209,23 @@ def _mean_distance(data, shift=1):
     distances = np.linalg.norm(differences, axis=1)
     return distances.mean()
 
+
 def show_data_distance(ax, d, max_step=50):
     """like a distance autocovariance function"""
-
 
     old_ylim = ax.get_ylim()
     ax.cla()
     if d.shape[0] > 10:
-        shifts = np.arange(0,min(d.shape[0]//2, max_step))
+        shifts = np.arange(0, min(d.shape[0] // 2, max_step))
         distances = [_mean_distance(d, shift) for shift in shifts]
         ax.plot(shifts, distances)
-    ax.set_xlim([0,max_step])
+    ax.set_xlim([0, max_step])
     new_ylim = ax.get_ylim()
     ax.set_ylim([0, max(old_ylim[1], new_ylim[1])])
     ax.set_title(f"dataset distances")
     ax.set_xlabel("offset")
     ax.set_ylabel("distance")
+
 
 def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
     """
@@ -235,20 +244,20 @@ def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
     bw = br.bw
 
     density = 50
-    x_bins = np.linspace(*xlim, density+1)
-    y_bins = np.linspace(*ylim, density+1)
+    x_bins = np.linspace(*xlim, density + 1)
+    y_bins = np.linspace(*ylim, density + 1)
     pdf = np.zeros(shape=(density, density))
     for i in range(density):
         for j in range(density):
-            x = np.array([x_bins[i] + x_bins[i+1], y_bins[j] + y_bins[j+1]])/2
+            x = np.array([x_bins[i] + x_bins[i + 1], y_bins[j] + y_bins[j + 1]]) / 2
             b_values = bw.logB_jax(x, bw.mu, bw.L, bw.L_diag)
-            pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A,offset) @ np.exp(b_values)
+            pdf[i, j] = bw.alpha @ np.linalg.matrix_power(bw.A, offset) @ np.exp(b_values)
 
     # these might control the colors
     # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=min(vmin, pdf.min()), vmax=max(vmax, pdf.max()))
     # cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T, vmin=0, vmax=0.03) #log, vmin=-15, vmax=-5
 
-    cmesh = ax.pcolormesh(x_bins,y_bins,pdf.T)
+    cmesh = ax.pcolormesh(x_bins, y_bins, pdf.T)
     fig.colorbar(cmesh)
 
     current_location, _ = br.data_source.get_atemporal_data_point(0)
@@ -259,6 +268,28 @@ def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
     ax.scatter(current_location[0], current_location[1], c='red')
 
     ax.set_title(f"{offset}-step pred.")
+
+
+def show_alphas_given_regression_value(ax, br, behavior_value, step, history_length=50, hist_axis=None):
+    br: BWRun
+    ax: plt.Axes
+    obs_hist, beh_hist = br.data_source.get_history()
+    shorter = min(len(beh_hist), len(br.alpha_history))
+    beh_hist = beh_hist[-shorter:]
+    a_hist = np.array(br.alpha_history[-shorter:])
+    mask = np.squeeze(beh_hist == behavior_value)
+    to_show = a_hist[mask]
+    to_show = to_show[-history_length:]
+
+    ax.imshow(to_show, interpolation='nearest')
+
+    ax.set_title(f"$\\alpha$ given beh=={behavior_value}")
+    ax.set_xlabel("$\\alpha$ index")
+    if hist_axis is not None:
+        hist_axis.cla()
+        hist_axis: plt.Axes
+        hist_axis.bar(np.arange(to_show.shape[1]), to_show.sum(axis=0) / to_show.sum())
+
 
 # def show_w_sideways(ax, bw, current_behavior):
 #     ax.cla()
@@ -281,6 +312,7 @@ def _one_sided_ewma(data, com=100):
     import pandas as pd
     return pd.DataFrame(data=dict(data=data)).ewm(com).mean()["data"]
 
+
 def _deduce_bw_parameters(bw):
     bw: bubblewrap.Bubblewrap
     return dict(dim=bw.d,
@@ -297,6 +329,7 @@ def _deduce_bw_parameters(bw):
                 batch_size=bw.batch_size,
                 go_fast=bw.go_fast)
 
+
 def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
@@ -308,7 +341,6 @@ def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
     to_print = []
     for key in keep_keys:
         to_print.append(f"{key}: {[p.get(key) for p in ps]}")
-
 
     fig, ax = plt.subplots(figsize=(12, 5), nrows=3, ncols=1, sharex='all', layout='tight')
     to_write = [[], [], []]
@@ -326,7 +358,7 @@ def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
         ax[0].plot(predictions, alpha=0.25, color='blue')
         c = 'black' if idx == 0 and first_is_unique else 'blue'
         ax[0].plot(smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
-        ax[0].tick_params(axis='y',labelcolor='blue')
+        ax[0].tick_params(axis='y', labelcolor='blue')
         # todo: bring this back
         ax[0].set_ylabel('prediction')
         to_write[0].append((idx, f"{predictions[n // 2:].mean():.3f}", dict(color=c)))
@@ -339,17 +371,16 @@ def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
         max_entropy = np.log2(br.bw.N)
         ax[1].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'g--')
 
-        ax[1].tick_params(axis='y',labelcolor='green')
+        ax[1].tick_params(axis='y', labelcolor='green')
         ax[1].set_ylabel('entropy')
         to_write[1].append((idx, f"{entropy[n // 2:].mean():.3f}", dict(color=c)))
 
-        beh_error = np.squeeze(br.behavior_error_history[offset]**2)
+        beh_error = np.squeeze(br.behavior_error_history[offset] ** 2)
         c = 'black' if idx == 0 and first_is_unique else 'orange'
         ax[2].plot(beh_error, color=c)
         ax[2].set_ylabel('behavior')
-        ax[2].tick_params(axis='y',labelcolor='green')
+        ax[2].tick_params(axis='y', labelcolor='green')
         to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
-
 
     for i, l in enumerate(to_write):
         ylim = ax[i].get_ylim()

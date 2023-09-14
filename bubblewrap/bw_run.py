@@ -10,13 +10,15 @@ from matplotlib.animation import FFMpegFileWriter
 import warnings
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .input_sources.data_sources import NumpyPairedDataSource, ConsumableDataSource
     from .regressions import OnlineRegressor
 
 
 class BWRun:
-    def __init__(self, bw, data_source, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True, output_directory="generated/bubblewrap_runs"):
+    def __init__(self, bw, data_source, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True,
+                 output_directory="generated/bubblewrap_runs"):
         # todo: add total runtime tracker
         self.data_source: ConsumableDataSource = data_source
         self.bw: Bubblewrap = bw
@@ -31,13 +33,13 @@ class BWRun:
         self.output_prefix = os.path.join(output_directory, f"bubblewrap_run_{time_string}")
         self.pickle_file = f"{self.output_prefix}.pickle"
         if self.animation_manager:
-            self.animation_manager.set_final_output_location(f"{self.output_prefix}.mp4")
+            self.animation_manager.set_final_output_location(f"{self.output_prefix}.{self.animation_manager.extension}")
 
         # self.total_runtime = None
         self.save_A = save_A
         self.show_tqdm = show_tqdm
 
-        #todo: history_of object?
+        # todo: history_of object?
         self.prediction_history = {k: [] for k in data_source.time_offsets}
         self.entropy_history = {k: [] for k in data_source.time_offsets}
         self.behavior_pred_history = {k: [] for k in data_source.time_offsets}
@@ -66,7 +68,8 @@ class BWRun:
         limit = min(len(self.data_source), limit)
 
         # todo: make a wrapper around data streams that works with TQDM
-        generator = tqdm(self.data_source.triples(limit=limit), total=limit) if self.show_tqdm else self.data_source.triples(limit=limit)
+        generator = tqdm(self.data_source.triples(limit=limit),
+                         total=limit) if self.show_tqdm else self.data_source.triples(limit=limit)
         for step, (obs, beh, offset_pairs) in enumerate(generator):
             self.bw.observe(obs)
 
@@ -74,7 +77,7 @@ class BWRun:
                 pass
             elif step == self.bw.M:
                 self.bw.init_nodes()
-                self.bw.e_step() # todo: is this OK?
+                self.bw.e_step()  # todo: is this OK?
                 self.bw.grad_Q()
             else:
                 self.bw.e_step()
@@ -90,19 +93,19 @@ class BWRun:
     def log_for_step(self, step, offset_pairs):
         # TODO: allow skipping of (e.g. entropy) steps?
         for offset, (o, b) in offset_pairs.items():
-            p = self.bw.pred_ahead(self.bw.logB_jax(o, self.bw.mu, self.bw.L, self.bw.L_diag), self.bw.A, self.bw.alpha, offset)
+            p = self.bw.pred_ahead(self.bw.logB_jax(o, self.bw.mu, self.bw.L, self.bw.L_diag), self.bw.A, self.bw.alpha,
+                                   offset)
             self.prediction_history[offset].append(p)
 
             e = self.bw.get_entropy(self.bw.A, self.bw.alpha, offset)
             self.entropy_history[offset].append(e)
 
             if self.behavior_regressor:
-                alpha_ahead = np.array(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)).reshape(-1,1)
+                alpha_ahead = np.array(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)).reshape(-1, 1)
                 bp = self.behavior_regressor.predict(alpha_ahead)
 
                 self.behavior_pred_history[offset].append(bp)
                 self.behavior_error_history[offset].append(bp - b)
-
 
         self.alpha_history.append(self.bw.alpha)
         self.n_living_history.append(self.bw.N - len(self.bw.dead_nodes))
@@ -112,14 +115,13 @@ class BWRun:
         if self.animation_manager and self.animation_manager.frame_draw_condition(step, self.bw):
             self.animation_manager.draw_frame(step, self.bw, self)
 
-
     def finish_and_remove_jax(self):
         if self.animation_manager:
             self.animation_manager.finish()
             del self.animation_manager
 
         def convert_dict(d):
-            return {k:np.array(v) for k, v in d.items()}
+            return {k: np.array(v) for k, v in d.items()}
 
         self.prediction_history = convert_dict(self.prediction_history)
         self.entropy_history = convert_dict(self.entropy_history)
@@ -133,7 +135,7 @@ class BWRun:
 
         self.bw.freeze()
 
-    def save(self,  freeze=True):
+    def save(self, freeze=True):
         self.saved = True
         if freeze:
             self.finish_and_remove_jax()
@@ -142,20 +144,26 @@ class BWRun:
             pickle.dump(self, fhan)
 
 
-
 class AnimationManager:
     # todo: this could inherit from FileWriter; that might be better design
     n_rows = 2
     n_cols = 2
     fps = 20
     dpi = 100
-    outfile = "./movie.mp4"
+    extension = "mp4"
+    outfile = f"./movie.{extension}"
+    figsize = (10, 10)
+
     def __init__(self):
         self.movie_writer = FFMpegFileWriter(fps=self.fps)
-        self.fig, self.ax = plt.subplots(self.n_rows, self.n_cols, figsize=(10, 10), layout='tight')
+        self.fig, self.ax = plt.subplots(self.n_rows, self.n_cols, figsize=self.figsize, layout='tight')
         self.movie_writer.setup(self.fig, self.outfile, dpi=self.dpi)
         self.finished = False
         self.final_output_location = None
+        self.setup()
+
+    def setup(self):
+        pass
 
     def set_final_output_location(self, final_output_location):
         self.final_output_location = final_output_location

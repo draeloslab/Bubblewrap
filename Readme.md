@@ -4,18 +4,19 @@
 
 ```python
 from bubblewrap import Bubblewrap, BWRun, AnimationManager, default_clock_parameters, SymmetricNoisyRegressor
-from bubblewrap.input_sources import HMM, HMMSimDataSource
+from bubblewrap.input_sources import HMM, HMMSimDataSourceSingle
 import bubblewrap.plotting_functions as bpf
 
 # define the data to feed into bubblewrap
-hmm = HMM.gaussian_clock_hmm(n_states=8,p1=.9)
-ds = HMMSimDataSource(hmm=hmm, seed=42, length=150, time_offsets=(1,))
+hmm = HMM.gaussian_clock_hmm(n_states=8, p1=.9)
+ds = HMMSimDataSourceSingle(hmm=hmm, seed=42, length=150, time_offsets=(1,))
 
 # define the bubblewrap object
 bw = Bubblewrap(dim=2, **default_clock_parameters)
 
 # define the (optional) method to regress the HMM state from `bw.alpha`
 reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
+
 
 # define how we want to animate the progress
 class CustomAnimation(AnimationManager):
@@ -25,15 +26,16 @@ class CustomAnimation(AnimationManager):
 
         # show an image of the transition matrix in the top-left axis
         bpf.show_A(self.ax[0, 0], bw)
-        
+
         # plot the eigenspectrum of the transition matrix on the top right
         bpf.show_A_eigenspectrum(self.ax[0, 1], bw)
-        
+
         # show the locations of the bubbles on the bottom left
-        bpf.show_bubbles_2d(self.ax[1,0], historical_observations, bw)
-        
+        bpf.show_bubbles_2d(self.ax[1, 0], historical_observations, bw)
+
         # show the estimated likelihood across space for the next data point
-        bpf.show_nstep_pred_pdf(self.ax[1,1], br, other_axis=self.ax[1,0], fig=self.fig, offset=1)
+        bpf.show_nstep_pred_pdf(self.ax[1, 1], br, other_axis=self.ax[1, 0], fig=self.fig, offset=1)
+
 
 # instantiate the (optional) object to make the video
 am = CustomAnimation()

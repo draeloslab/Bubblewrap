@@ -1,6 +1,6 @@
 import numpy as np
 
-from bubblewrap.input_sources import NumpyPairedDataSource, HMMSimDataSource, HMM, ProSVDDataSource
+from bubblewrap.input_sources import NumpyPairedDataSource, HMMSimDataSourceSingle, HMM, ProSVDDataSourceSingle
 from bubblewrap.input_sources.data_sources import ConsumableDataSource, PairWrapperSource, NumpyDataSource, ConcatenatorSource
 import pytest
 
@@ -15,14 +15,14 @@ def ds(rng, request):
 
     elif request.param == "hmm":
         hmm = HMM.gaussian_clock_hmm(20, p1=.9, angle=0, variance_scale=2, radius=10)
-        return HMMSimDataSource(hmm, seed=0, length=m, time_offsets=(-10, -1, 0, 10))
+        return HMMSimDataSourceSingle(hmm, seed=0, length=m, time_offsets=(-10, -1, 0, 10))
 
     elif request.param == "pro":
         init_size = 100
         t = np.linspace(0,30*np.pi, m + init_size)
         obs = np.vstack([np.sin(t), np.cos(t)]).T
         a = NumpyDataSource(obs, time_offsets=(-10, -1, 0, 10))
-        b = ProSVDDataSource(input_source=NumpyDataSource(obs), output_d=1, init_size=init_size, time_offsets=a.time_offsets)
+        b = ProSVDDataSourceSingle(input_source=NumpyDataSource(obs), output_d=1, init_size=init_size, time_offsets=a.time_offsets)
         return PairWrapperSource(b, a)
 
 # todo: test with no time_offset
@@ -63,7 +63,7 @@ def test_history_is_correct(ds):
 def test_prosvd_synced():
     arr = np.array([1,2,3,4,5])[:,None]
     a = NumpyDataSource(arr, time_offsets=())
-    b = ProSVDDataSource(input_source=NumpyDataSource(arr), output_d=1, init_size=3, time_offsets=a.time_offsets)
+    b = ProSVDDataSourceSingle(input_source=NumpyDataSource(arr), output_d=1, init_size=3, time_offsets=a.time_offsets)
     p = PairWrapperSource(b, a)
     aa, bb = next(p)
     assert np.allclose(aa,bb)
@@ -85,4 +85,8 @@ def test_reusable(ds):
     pass
 
 def test_serializable(ds):
+    pass
+
+def test_sorten_and_length():
+    "this should test that an iterator can run all the way even if it's been shortened"
     pass

@@ -24,6 +24,21 @@ default_rwd_parameters = dict(
     seed=42,
 )
 
+default_jpca_dataset_parameters = dict(
+    default_rwd_parameters,
+    num=200,
+    lam=9.601187188117253e-07,
+    nu=0.00038733613513220095,
+    eps=0.0001758651684402766,
+    step=8e-2,
+    M=30,
+    B_thresh=0,
+    batch=False,
+    batch_size=1,
+    go_fast=False,
+    seed=42,
+)
+
 default_clock_parameters = dict(
     num=8,
     lam=1e-3,

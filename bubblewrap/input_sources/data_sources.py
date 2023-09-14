@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .hmm_simulation import HMM
 
-
 dataset_base_path = "/home/jgould/Documents/Bubblewrap/generated/datasets/"
+
 
 class DataSource(ABC):
     def __init__(self, output_shape, time_offsets=()):
@@ -48,18 +48,15 @@ class DataSource(ABC):
 
 class ConsumableDataSource(DataSource, ABC):
     def triples(self, limit=None):
-        if limit is None:
-            limit = len(self)
-        limit = min(len(self), limit)
-
-        assert np.isfinite(limit)
-        for _ in range(limit):
-            obs, beh = next(self)
+        count = 0
+        for obs, beh in self:
             pairs = {}
             for offset in self.time_offsets:
                 pairs[offset] = self.get_atemporal_data_point(offset)
-
+            if count == limit:
+                raise StopIteration
             yield obs, beh, pairs
+            count += 1
 
 
 class PairWrapperSource(ConsumableDataSource):
@@ -129,9 +126,7 @@ class ConcatenatorSource(DataSource):
         return self
 
 
-
-
-class StreamDataSource(DataSource, ABC):
+class SingleStreamDataSource(DataSource, ABC):
     def __init__(self, output_shape, time_offsets=(), min_memory_radius=500):
         super().__init__(output_shape, time_offsets)
 
@@ -175,7 +170,11 @@ class StreamDataSource(DataSource, ABC):
             return self.future[offset - 1]
 
     def get_history(self, depth=None):
-        return np.array(self.past)
+        # todo: this is a hack
+        p = self.past
+        if p and isinstance(p[0], tuple):
+            p = [np.array(a) for a in zip(*p)]
+        return p
 
     def shorten(self, n):
         for _ in range(n):
@@ -183,8 +182,7 @@ class StreamDataSource(DataSource, ABC):
         self.length -= n
 
 
-
-class HMMSimDataSource(StreamDataSource, ConsumableDataSource):
+class HMMSimDataSourceSingle(SingleStreamDataSource, ConsumableDataSource):
     def __init__(self, hmm, seed, length, time_offsets=()):
         super().__init__(output_shape=(hmm.emission_model.embedded_dimension, 1), time_offsets=time_offsets)
 
@@ -209,11 +207,12 @@ class HMMSimDataSource(StreamDataSource, ConsumableDataSource):
         for i in range(obs.shape[0]):
             self.future.append((obs[i], beh[i]))
 
+
 class NumpyDataSource(DataSource):
     def __init__(self, a, time_offsets=()):
         a = np.array(a)
         if len(a.shape) == 1:
-            a = a[:,None]
+            a = a[:, None]
         super().__init__(output_shape=len(a[0]), time_offsets=time_offsets)
         self.a = a
 
@@ -288,14 +287,14 @@ class NumpyPairedDataSource(ConsumableDataSource):
         if len(beh.shape) == 1:
             self.beh = beh.reshape((obs.shape[0], -1))
 
-        super().__init__(output_shape=(self.obs.shape[1], self.beh.shape[1]),time_offsets=time_offsets)
+        super().__init__(output_shape=(self.obs.shape[1], self.beh.shape[1]), time_offsets=time_offsets)
 
         assert len(self.beh) == len(self.obs)
 
         self.clear_range = (0, len(obs))
         if time_offsets:
             self.clear_range = (max(0, -min(time_offsets)), len(obs) - max(max(time_offsets), 0))
-        self.length = self.clear_range[1] -self.clear_range[0]
+        self.length = self.clear_range[1] - self.clear_range[0]
 
         self.index = 0
 
@@ -341,11 +340,11 @@ class NumpyPairedDataSource(ConsumableDataSource):
             raise IndexError()
 
         o = self.obs[slice_start:slice_end, :]
-        b = self.obs[slice_start:slice_end, :]
+        b = self.beh[slice_start:slice_end, :]
         return o, b
 
 
-class ProSVDDataSource(StreamDataSource):
+class ProSVDDataSourceSingle(SingleStreamDataSource):
     def __init__(self, input_source, output_d, init_size=100, min_memory_radius=500, time_offsets=()):
         super().__init__(output_shape=output_d, time_offsets=time_offsets, min_memory_radius=min_memory_radius)
         self.output_d = output_d
@@ -369,12 +368,10 @@ class ProSVDDataSource(StreamDataSource):
 
             self.past.appendleft(obs)
 
-
         self.length = len(input_source) - init_size - sum(self.necessary_buffer)
         self.init_size = init_size + 1
 
         assert self.length >= 0
-
 
         self.simulate_more_steps()
 

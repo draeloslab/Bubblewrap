@@ -1,2 +1,2 @@
-from .data_sources import NumpyPairedDataSource, HMMSimDataSource, ProSVDDataSource
+from .data_sources import NumpyPairedDataSource, HMMSimDataSourceSingle, ProSVDDataSourceSingle
 from .hmm_simulation import HMM
