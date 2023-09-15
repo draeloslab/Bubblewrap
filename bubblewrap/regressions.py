@@ -33,9 +33,11 @@ class OnlineRegressor:
 
 
 class SymmetricNoisyRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, forgetting_factor=1 - (1e-2), noise_scale=1e-5, n_perturbations=1, seed=24,
+    def __init__(self, input_d, output_d, forgetting_factor=1e-3, noise_scale=1e-2, n_perturbations=3, seed=24,
                  init_min_ratio=3):
         super().__init__(input_d, output_d)
+
+        forgetting_factor = 1-forgetting_factor
 
         if n_perturbations < 1:
             raise Exception("the number of perturbations has to be more than 1")

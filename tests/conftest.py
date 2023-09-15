@@ -23,7 +23,7 @@ def make_br(rng, outdir):
         ds = NumpyPairedDataSource(obs, beh, time_offsets=(3, 0, 3))
 
         bw = Bubblewrap(n_obs, **default_clock_parameters)
-        reg = SymmetricNoisyRegressor(bw.N, n_beh, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
+        reg = SymmetricNoisyRegressor(bw.N, n_beh)
         br = BWRun(bw, ds, behavior_regressor=reg, show_tqdm=True, output_directory=outdir)
         br.run(save=True)
         return br

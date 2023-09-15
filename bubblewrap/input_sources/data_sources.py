@@ -54,7 +54,7 @@ class ConsumableDataSource(DataSource, ABC):
             for offset in self.time_offsets:
                 pairs[offset] = self.get_atemporal_data_point(offset)
             if count == limit:
-                raise StopIteration
+                return
             yield obs, beh, pairs
             count += 1
 

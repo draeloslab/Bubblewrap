@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
 import warnings
+import time
 
 from typing import TYPE_CHECKING
 
@@ -44,6 +45,7 @@ class BWRun:
         self.entropy_history = {k: [] for k in data_source.time_offsets}
         self.behavior_pred_history = {k: [] for k in data_source.time_offsets}
         self.behavior_error_history = {k: [] for k in data_source.time_offsets}
+        self.runtime = None
 
         self.alpha_history = []
         self.n_living_history = []
@@ -59,6 +61,7 @@ class BWRun:
         # note that if there is no behavior, the behavior dimensions will be zero
 
     def run(self, save=True, limit=None):
+        start_time = time.time()
 
         if len(self.data_source) < self.bw.M:
             warnings.warn("Data length shorter than initialization.")
@@ -86,6 +89,8 @@ class BWRun:
                 if self.behavior_regressor:
                     self.behavior_regressor.safe_observe(self.bw.alpha, beh)
                 self.log_for_step(step, offset_pairs)
+
+        self.runtime = time.time() - start_time
 
         if save:
             self.save()

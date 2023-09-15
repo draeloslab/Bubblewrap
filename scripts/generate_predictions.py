@@ -37,8 +37,7 @@ def main():
         bw = Bubblewrap(dim=ds.output_shape[0], **default_rwd_parameters)
 
         # define the (optional) method to regress the HMM state from `bw.alpha`
-        reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=ds.output_shape[1], forgetting_factor=1 - (1e-2),
-                                      noise_scale=1e-5)
+        reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=ds.output_shape[1])
         # reg = NearestNeighborRegressor(input_d=bw.N, output_d=ds.output_shape[1])
 
         # define the object to coordinate all the other objects

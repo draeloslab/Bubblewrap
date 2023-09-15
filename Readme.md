@@ -15,7 +15,7 @@ ds = HMMSimDataSourceSingle(hmm=hmm, seed=42, length=150, time_offsets=(1,))
 bw = Bubblewrap(dim=2, **default_clock_parameters)
 
 # define the (optional) method to regress the HMM state from `bw.alpha`
-reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
+reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1)
 
 
 # define how we want to animate the progress
