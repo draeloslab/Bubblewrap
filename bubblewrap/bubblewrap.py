@@ -216,6 +216,12 @@ class Bubblewrap():
 
         self.dead_nodes_ind[node] = 0
 
+        nearest_bubble = numpy.argsort(numpy.linalg.norm(self.mu-x, axis=1))[1]
+
+        A = numpy.array(self.A)
+        A[node] = A[nearest_bubble]
+        self.A = A
+
         if self.printing:
             print('Teleported node ', node, ' to current data location at time ', self.t)
             self.teleported_times.append(self.t)
