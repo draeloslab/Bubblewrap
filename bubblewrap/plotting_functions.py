@@ -327,10 +327,12 @@ def _deduce_bw_parameters(bw):
                 n_thresh=bw.n_thresh,
                 batch=bw.batch,
                 batch_size=bw.batch_size,
-                go_fast=bw.go_fast)
+                go_fast=bw.go_fast,
+                copy_row_on_teleport=bw.copy_row_on_teleport,
+                )
 
 
-def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
+def compare_metrics(brs, offset, colors=None, smoothing_scale=50, show_legend=True, show_title=True):
     ps = [_deduce_bw_parameters(br.bw) for br in brs]
     keys = set([leaf for tree in ps for leaf in tree.keys()])
     keep_keys = []
@@ -355,31 +357,39 @@ def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
         predictions = br.prediction_history[offset]
         smoothed_predictions = _one_sided_ewma(predictions, smoothing_scale)
 
-        ax[0].plot(predictions, alpha=0.25, color='blue')
-        c = 'black' if idx == 0 and first_is_unique else 'blue'
+        c = 'black'
+        if colors:
+            c = colors[idx]
+        ax[0].plot(predictions, alpha=0.25, color=c)
         ax[0].plot(smoothed_predictions, color=c, label=br.pickle_file.split("/")[-1].split(".")[0].split("_")[-1])
-        ax[0].tick_params(axis='y', labelcolor='blue')
+        ax[0].tick_params(axis='y')
         # todo: bring this back
         ax[0].set_ylabel('prediction')
         to_write[0].append((idx, f"{predictions[n // 2:].mean():.3f}", dict(color=c)))
 
         entropy = br.entropy_history[offset]
         smoothed_entropy = _one_sided_ewma(entropy, smoothing_scale)
-        ax[1].plot(entropy, color='green', alpha=0.25)
-        c = 'black' if idx == 0 and first_is_unique else 'green'
+
+        c = 'black'
+        if colors:
+            c = colors[idx]
+        ax[1].plot(entropy, color=c, alpha=0.25)
+
         ax[1].plot(smoothed_entropy, color=c)
         max_entropy = np.log2(br.bw.N)
-        ax[1].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'g--')
+        ax[1].plot([0, entropy.shape[0]], [max_entropy, ] * 2, 'k--')
 
-        ax[1].tick_params(axis='y', labelcolor='green')
+        ax[1].tick_params(axis='y')
         ax[1].set_ylabel('entropy')
         to_write[1].append((idx, f"{entropy[n // 2:].mean():.3f}", dict(color=c)))
 
         beh_error = np.squeeze(br.behavior_error_history[offset] ** 2)
-        c = 'black' if idx == 0 and first_is_unique else 'orange'
+        c = 'black'
+        if colors:
+            c = colors[idx]
         ax[2].plot(beh_error, color=c)
-        ax[2].set_ylabel('behavior')
-        ax[2].tick_params(axis='y', labelcolor='green')
+        ax[2].set_ylabel('behavior mse')
+        ax[2].tick_params(axis='y')
         to_write[2].append((idx, f"{beh_error[n // 2:].mean():.3f}", dict(color=c)))
 
     for i, l in enumerate(to_write):
@@ -392,5 +402,9 @@ def compare_metrics(brs, offset, first_is_unique=True, smoothing_scale=50):
     xticks.append(n // 2)
     ax[2].set_xticks(xticks)
     ax[0].set_xlim(xlim)
-    ax[0].set_title(" ".join(to_print))
-    ax[0].legend(loc="lower right")
+    if show_title:
+        ax[0].set_title(" ".join(to_print))
+    else:
+        print(to_print)
+    if show_legend:
+        ax[0].legend(loc="lower right")

@@ -6,13 +6,13 @@ from jax import jit, grad, vmap
 from jax import nn, random
 from .regressions import WindowRegressor, SymmetricNoisyRegressor
 
-# todo: make this a parameter
+# todo: make this a parameter?
 epsilon = 1e-10
 
 
 class Bubblewrap():
-    def __init__(self, dim, num=1000, seed=42, M=30, step=1e-6, lam=1, eps=3e-2, nu=1e-2, B_thresh=1e-4, n_thresh=5e-4,
-                 batch=False, batch_size=1, go_fast=False):
+    def __init__(self, dim, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4,
+                 batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True):
         self.N = num  # Number of nodes
         self.d = dim  # dimension of the space
         self.seed = seed
@@ -24,6 +24,7 @@ class Bubblewrap():
         self.B_thresh = B_thresh
         self.n_thresh = n_thresh
         self.step = step
+        self.copy_row_on_teleport = copy_row_on_teleport
 
         self.batch = batch
         self.batch_size = batch_size
@@ -148,8 +149,8 @@ class Bubblewrap():
             self.obs.new_obs(x)
 
         if not self.go_fast and self.obs.cov is not None and self.mu_orig is not None:
-            lamr = 0.02
-            eta = np.sqrt(lamr * np.diag(self.obs.cov))
+            lamr = 0.02  # this is $\lambda$ from the paper
+            eta = np.sqrt(lamr * np.diag(self.obs.cov))  # this is $\nu$ from the paper
 
             self.mu_orig = (1 - lamr) * self.mu_orig + lamr * self.obs.mean + eta * numpy.random.normal(
                 size=(self.N, self.d))
@@ -216,11 +217,12 @@ class Bubblewrap():
 
         self.dead_nodes_ind[node] = 0
 
-        nearest_bubble = numpy.argsort(numpy.linalg.norm(self.mu-x, axis=1))[1]
-
-        A = numpy.array(self.A)
-        A[node] = A[nearest_bubble]
-        self.A = A
+        if self.copy_row_on_teleport:
+            # TODO: other updates here?
+            nearest_bubble = numpy.argsort(numpy.linalg.norm(self.mu-x, axis=1))[1]
+            A = numpy.array(self.A)
+            A[node] = A[nearest_bubble]
+            self.A = A
 
         if self.printing:
             print('Teleported node ', node, ' to current data location at time ', self.t)

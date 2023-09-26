@@ -1,21 +1,23 @@
 import numpy as np
 from bubblewrap import Bubblewrap, BWRun, AnimationManager
-from bubblewrap.regressions import NearestNeighborRegressor
+from bubblewrap.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor
 from bubblewrap.default_parameters import default_jpca_dataset_parameters
 from bubblewrap.input_sources.data_sources import NumpyDataSource, PairWrapperSource
 from bubblewrap.input_sources import HMM, HMMSimDataSourceSingle
 import bubblewrap.plotting_functions as bpf
 # from optim import evaluate
 
-def example_movie():
+def example_movie(shorten):
     obs, beh = NumpyDataSource.get_from_saved_npz("jpca_reduced_sc.npz", time_offsets=(0, 1, 5))
     ds = PairWrapperSource(obs, beh)
 
+    ds.shorten(shorten)
+
     # define the bubblewrap object
-    bw = Bubblewrap(dim=ds.output_shape[0], **default_jpca_dataset_parameters)
+    bw = Bubblewrap(dim=ds.output_shape[0], copy_row_on_teleport=False, **dict(default_jpca_dataset_parameters, B_thresh=-15, seed=shorten))
 
     # define the (optional) method to regress the HMM state from `bw.alpha`
-    # reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1, forgetting_factor=1 - (1e-2), noise_scale=1e-5)
+    # reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1)
     reg = NearestNeighborRegressor(input_d=bw.N, output_d=1, maxlen=600)
 
     class CustomAnimation(AnimationManager):
@@ -43,13 +45,16 @@ def example_movie():
     am = CustomAnimation()
 
     # define the object to coordinate all the other objects
-    br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, animation_manager=am, show_tqdm=True,  output_directory="/home/jgould/Documents/Bubblewrap/generated/bubblewrap_runs/")
+    br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, animation_manager=None, show_tqdm=True,  output_directory="/home/jgould/Documents/Bubblewrap/generated/bubblewrap_runs/")
 
     # run and save the output
     br.run()
 
 def main():
-    example_movie()
+    example_movie(0)
+    example_movie(33)
+    example_movie(75)
+    example_movie(100)
 
 
 if __name__ == '__main__':

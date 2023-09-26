@@ -48,3 +48,5 @@ def test_can_make_video(rng, outdir):
     reg = SymmetricNoisyRegressor(bw.N, n_beh)
     br = BWRun(bw, ds, behavior_regressor=reg, animation_manager=ca, show_tqdm=False, output_directory=outdir)
     br.run()
+
+# TODO: test different regressors work together
