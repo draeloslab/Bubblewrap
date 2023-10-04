@@ -10,9 +10,9 @@ def inner_evaluate(parameters, scrap=0):
     ds = PairWrapperSource(obs, beh)
     ds.shorten(scrap)
 
-    bw = Bubblewrap(dim=ds.output_shape[0], **parameters)
+    bw = Bubblewrap(dim=ds.output_shape[0], **default_jpca_dataset_parameters)
 
-    reg = NearestNeighborRegressor(input_d=bw.N, output_d=1)
+    reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1, **parameters)
 
     br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, show_tqdm=True,
                output_directory="/home/jgould/Documents/Bubblewrap/generated/bubblewrap_runs/")
@@ -31,17 +31,17 @@ def inner_evaluate(parameters, scrap=0):
     # mse = min(mse, 1e5) + (mse % 10)
 
     return {
-        "bw_log_pred_pr": np.mean(last),
+        # "bw_log_pred_pr": np.mean(last),
+        # "entropy":np.mean(last_e),
         "runtime": br.runtime,
         "regression_mse": mse,
-        "entropy":np.mean(last_e)
     }
 
 
 def evaluate(parameters):
     results = {}
     for to_scrap in [0, 25, 50, 100, 150, 175]:
-        inner_parameters = dict(default_jpca_dataset_parameters, **parameters)
+        inner_parameters = dict(**parameters)
         for key, value in inner_evaluate(inner_parameters, scrap=to_scrap).items():
             results[key] = results.get(key, []) + [value]
     for key, value in results.items():
@@ -89,29 +89,28 @@ def make_ax_client(generation_strategy):
     ax_client = AxClient(generation_strategy=generation_strategy)
 
     ax_client.create_experiment(
-        name="bw_reg_2step_mse",
+        name="sn_2step_jpca_defaults",
         parameters=[
             {
-                "name": "num",
+                "name": "forgetting_factor",
                 "type": "range",
-                "bounds": [5, 2000],
+                "bounds": [1e-5, .15],
+                "value_type": 'float',
+                "log_scale": True,
+            },
+            {
+                "name": "noise_scale",
+                "type": "range",
+                "bounds": [1e-5, 2],
+                "value_type": 'float',
+                "log_scale": True,
+            },
+            {
+                "name": "n_perturbations",
+                "type": "range",
+                "bounds": [1, 6],
                 "value_type": 'int',
-                "log_scale": True,
             },
-            {
-                "name": "B_thresh",
-                "type": "range",
-                "bounds": [-30.0, 0.0],
-                "value_type": 'float',
-            },
-            {
-                "name": "eps",
-                "type": "range",
-                "bounds": [1e-10, 1],
-                "value_type": 'float',
-                "log_scale": True,
-            },
-
         ],
         objectives={
             "regression_mse": ObjectiveProperties(minimize=True),
@@ -122,6 +121,7 @@ def make_ax_client(generation_strategy):
             "bw_log_pred_pr"
         ]
     )
+
 
     return ax_client
 
@@ -147,7 +147,7 @@ def main():
 
     # manually_add_old_trials(ax_client, f"/home/jgould/Documents/Bubblewrap/generated/optim/ax_{ax_client.experiment.name}_snapshot.json")
 
-    for i in range(250):
+    for i in range(100):
         parameters, trial_index = ax_client.get_next_trial()
         # Local evaluation here can be replaced with deployment to external system.
         ax_client.complete_trial(trial_index=trial_index, raw_data=evaluate(parameters))

@@ -59,3 +59,7 @@ def test_nan_at_right_time(reg_maker, rng):
 
     x = rng.choice(space, size=n)
     assert np.all(~np.isnan(reg.predict(x)))
+
+
+def test_regressions_stop_early_enough():
+    assert False

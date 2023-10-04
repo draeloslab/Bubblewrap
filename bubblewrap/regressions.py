@@ -33,7 +33,7 @@ class OnlineRegressor:
 
 
 class SymmetricNoisyRegressor(OnlineRegressor):
-    def __init__(self, input_d, output_d, forgetting_factor=1e-3, noise_scale=1e-2, n_perturbations=3, seed=24,
+    def __init__(self, input_d, output_d, forgetting_factor=1e-4, noise_scale=1e-3, n_perturbations=3, seed=24,
                  init_min_ratio=3):
         super().__init__(input_d, output_d)
 
@@ -97,9 +97,10 @@ class SymmetricNoisyRegressor(OnlineRegressor):
 
     def predict(self, x):
         if self.D is None:
-            return np.nan * np.ones(shape=[self.output_d, ])
+            return np.squeeze(np.nan * np.ones(shape=[self.output_d, ]))
 
         w = self.D @ self.c
+
         return np.squeeze(x.T @ w)
 
 

@@ -127,7 +127,7 @@ class ConcatenatorSource(DataSource):
 
 
 class SingleStreamDataSource(DataSource, ABC):
-    def __init__(self, output_shape, time_offsets=(), min_memory_radius=500):
+    def __init__(self, output_shape, time_offsets=(), min_memory_radius=100_000):
         super().__init__(output_shape, time_offsets)
 
         self.necessary_buffer = [-1 * min(min(time_offsets, default=0), 0) + 1,
@@ -345,7 +345,7 @@ class NumpyPairedDataSource(ConsumableDataSource):
 
 
 class ProSVDDataSourceSingle(SingleStreamDataSource):
-    def __init__(self, input_source, output_d, init_size=100, min_memory_radius=500, time_offsets=()):
+    def __init__(self, input_source, output_d, init_size=100, min_memory_radius=100_000, time_offsets=()):
         super().__init__(output_shape=output_d, time_offsets=time_offsets, min_memory_radius=min_memory_radius)
         self.output_d = output_d
         self.input_source: DataSource = input_source
