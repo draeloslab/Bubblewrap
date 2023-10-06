@@ -1,6 +1,3 @@
-import numpy as np
-import pytest
-
 from bubblewrap import Bubblewrap
 from bubblewrap.default_parameters import default_clock_parameters
 from bubblewrap.input_sources import NumpyPairedDataSource
@@ -50,6 +47,7 @@ def test_can_make_video(rng, outdir):
     br.run()
 
 def test_can_use_cuda():
-    assert False
+    from jax.lib import xla_bridge
+    assert xla_bridge.get_backend().platform == 'gpu'
 
 # TODO: test different regressors work together

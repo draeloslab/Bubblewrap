@@ -61,8 +61,7 @@ def test_nan_at_right_time(reg_maker, rng):
     assert np.all(~np.isnan(reg.predict(x)))
 
 
-def test_regressions_stop_early_enough():
-    assert False
 
-def test_output_shapes_are_correct():
-    assert False
+def test_output_shapes_are_correct(reg_maker, rng):
+
+    reg = reg_maker(input_d=2, output_d=1,)

@@ -1,29 +1,16 @@
 import numpy as np
-
-from bubblewrap.input_sources import NumpyPairedDataSource, HMMSimDataSourceSingle, HMM, ProSVDDataSourceSingle
-from bubblewrap.input_sources.data_sources import ConsumableDataSource, PairWrapperSource, NumpyDataSource, ConcatenatorSource
+from bubblewrap.input_sources.data_sources import NumpyPairedDataSource, ConsumableDataSource
+import bubblewrap.input_sources.functional as fin
 import pytest
 
 
-@pytest.fixture(params=["numpy", "hmm", "pro"])
+@pytest.fixture(params=["numpy"])
 def ds(rng, request):
     m = 500
     if request.param == "numpy":
         t = np.linspace(0,30*np.pi, m)
         obs = np.vstack([np.sin(t), np.cos(t)]).T
         return NumpyPairedDataSource(obs, np.mod(t, np.pi), time_offsets=(-10, -1, 0, 10))
-
-    elif request.param == "hmm":
-        hmm = HMM.gaussian_clock_hmm(20, p1=.9, angle=0, variance_scale=2, radius=10)
-        return HMMSimDataSourceSingle(hmm, seed=0, length=m, time_offsets=(-10, -1, 0, 10))
-
-    elif request.param == "pro":
-        init_size = 100
-        t = np.linspace(0,30*np.pi, m + init_size)
-        obs = np.vstack([np.sin(t), np.cos(t)]).T
-        a = NumpyDataSource(obs, time_offsets=(-10, -1, 0, 10))
-        b = ProSVDDataSourceSingle(input_source=NumpyDataSource(obs), output_d=1, init_size=init_size, time_offsets=a.time_offsets)
-        return PairWrapperSource(b, a)
 
 # todo: test with no time_offset
 
@@ -60,33 +47,5 @@ def test_history_is_correct(ds):
         last_beh = beh
 
 
-def test_prosvd_synced():
-    arr = np.array([1,2,3,4,5])[:,None]
-    a = NumpyDataSource(arr, time_offsets=())
-    b = ProSVDDataSourceSingle(input_source=NumpyDataSource(arr), output_d=1, init_size=3, time_offsets=a.time_offsets)
-    p = PairWrapperSource(b, a)
-    aa, bb = next(p)
-    assert np.allclose(aa,bb)
-
 def test_can_load_file():
-    obs, beh = NumpyDataSource.get_from_saved_npz("jpca_reduced.npz", time_offsets=())
-
-def test_can_concatenate():
-    a = NumpyDataSource([1,2,3])
-    b = NumpyDataSource([4,5,6])
-    c = NumpyDataSource([7,8,9])
-    d = ConcatenatorSource([a,b])
-    ds = PairWrapperSource(c,d)
-    n = next(ds)
-    assert np.all(n[0] == np.array([7]))
-    assert np.all(n[1] == np.array([1,4]))
-
-def test_reusable(ds):
-    pass
-
-def test_serializable(ds):
-    pass
-
-def test_sorten_and_length():
-    "this should test that an iterator can run all the way even if it's been shortened"
-    pass
+    obs, beh = fin.get_from_saved_npz("jpca_reduced_sc.npz")

@@ -2,14 +2,13 @@ import numpy as np
 from bubblewrap import Bubblewrap, BWRun, AnimationManager
 from bubblewrap.regressions import NearestNeighborRegressor, SymmetricNoisyRegressor
 from bubblewrap.default_parameters import default_jpca_dataset_parameters
-from bubblewrap.input_sources.data_sources import NumpyDataSource, PairWrapperSource
-from bubblewrap.input_sources import HMM, HMMSimDataSourceSingle
+from bubblewrap.input_sources.functional import get_from_saved_npz
+from bubblewrap.input_sources.data_sources import NumpyPairedDataSource
 import bubblewrap.plotting_functions as bpf
-# from optim import evaluate
 
 def example_movie(shorten):
-    obs, beh = NumpyDataSource.get_from_saved_npz("jpca_reduced_sc.npz", time_offsets=(0, 1, 5))
-    ds = PairWrapperSource(obs, beh)
+    obs, beh = get_from_saved_npz("jpca_reduced_sc.npz")
+    ds = NumpyPairedDataSource(obs, beh, time_offsets=(1,))
 
     ds.shorten(shorten)
 
@@ -45,16 +44,13 @@ def example_movie(shorten):
     am = CustomAnimation()
 
     # define the object to coordinate all the other objects
-    br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, animation_manager=None, show_tqdm=True,  output_directory="/home/jgould/Documents/Bubblewrap/generated/bubblewrap_runs/")
+    br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, animation_manager=am, show_tqdm=True)
 
     # run and save the output
     br.run()
 
 def main():
     example_movie(0)
-    example_movie(33)
-    example_movie(75)
-    example_movie(100)
 
 
 if __name__ == '__main__':
