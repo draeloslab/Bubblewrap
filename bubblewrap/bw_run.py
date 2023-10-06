@@ -1,4 +1,3 @@
-# todo: maybe put JAX here to prevent gpu usage?
 from bubblewrap import Bubblewrap
 import datetime
 import pickle
@@ -9,6 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
 import warnings
 import time
+from .config import CONFIG
 
 from typing import TYPE_CHECKING
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 class BWRun:
     def __init__(self, bw, data_source, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True,
-                 output_directory="generated/bubblewrap_runs"):
+                 output_directory=os.path.join(CONFIG["output_path"],"bubblewrap_runs")):
         # todo: add total runtime tracker
         self.data_source: ConsumableDataSource = data_source
         self.bw: Bubblewrap = bw

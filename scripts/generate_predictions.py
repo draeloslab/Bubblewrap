@@ -44,8 +44,7 @@ def main():
 
             bw = Bubblewrap(dim=ds.output_shape[0], **default_rwd_parameters)
             reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=ds.output_shape[1])
-            br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, show_tqdm=True,
-                       output_directory="/home/jgould/Documents/Bubblewrap/generated/bubblewrap_runs/")
+            br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, show_tqdm=True)
 
             br.run(limit=10_000, )
             err = np.squeeze(br.behavior_error_history[1][-1000:])

@@ -63,3 +63,6 @@ def test_nan_at_right_time(reg_maker, rng):
 
 def test_regressions_stop_early_enough():
     assert False
+
+def test_output_shapes_are_correct():
+    assert False

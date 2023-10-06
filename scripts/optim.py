@@ -14,8 +14,7 @@ def inner_evaluate(parameters, scrap=0):
 
     reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=1, **parameters)
 
-    br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, show_tqdm=True,
-               output_directory="/home/jgould/Documents/Bubblewrap/generated/bubblewrap_runs/")
+    br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, show_tqdm=True)
 
     br.run(limit=1400, save=False)
 

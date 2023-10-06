@@ -49,4 +49,7 @@ def test_can_make_video(rng, outdir):
     br = BWRun(bw, ds, behavior_regressor=reg, animation_manager=ca, show_tqdm=False, output_directory=outdir)
     br.run()
 
+def test_can_use_cuda():
+    assert False
+
 # TODO: test different regressors work together

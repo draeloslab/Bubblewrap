@@ -1,17 +1,11 @@
 import numpy as np
 import os
 import pickle
-import warnings
 import json
 from proSVD import proSVD
 import bubblewrap
 
-TURN_OFF_CACHING = False
-if TURN_OFF_CACHING:
-    warnings.warn("Caching is turned off.")
 
-
-dataset_base_path = "/home/jgould/Documents/Bubblewrap/generated/datasets/"
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -22,7 +16,8 @@ class NumpyEncoder(json.JSONEncoder):
 def make_hashable(x):
     return json.dumps(x, sort_keys=True, cls=NumpyEncoder).encode()
 
-def save_to_cache(file, location=os.path.join(dataset_base_path, "cache")):
+
+def save_to_cache(file, location=os.path.join(bubblewrap.config.CONFIG["data_path"], "cache")):
     cache_index_file = os.path.join(location, f"{file}_index.pickle")
     try:
         with open(cache_index_file, 'rb') as fhan:
@@ -31,7 +26,7 @@ def save_to_cache(file, location=os.path.join(dataset_base_path, "cache")):
         cache_index = {}
 
     def decorator(original_function):
-        if TURN_OFF_CACHING:
+        if not bubblewrap.config.CONFIG["attempt_to_cache"]:
             return original_function
 
         def new_function(**kwargs):
@@ -56,7 +51,7 @@ def save_to_cache(file, location=os.path.join(dataset_base_path, "cache")):
 
 
 def get_from_saved_npz(filename):
-    dataset = np.load(os.path.join(dataset_base_path, filename))
+    dataset = np.load(os.path.join(bubblewrap.config.CONFIG["data_path"], filename))
     beh = dataset['x']
 
     if len(dataset['y'].shape) == 3:
