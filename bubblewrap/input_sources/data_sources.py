@@ -2,13 +2,13 @@ import numpy as np
 from collections import deque
 from proSVD import proSVD
 from abc import ABC, abstractmethod
+from .functional import get_from_saved_npz
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .hmm_simulation import HMM
 
-dataset_base_path = "/home/jgould/Documents/Bubblewrap/generated/datasets/"
 
 
 class DataSource(ABC):
@@ -227,14 +227,9 @@ class NumpyDataSource(DataSource):
         return NumpyDataSource(self.a)
 
     @staticmethod
-    def get_from_saved_npz(path, time_offsets):
-        dataset = np.load(dataset_base_path + path)
-        beh = NumpyDataSource(dataset['x'], time_offsets=time_offsets)
-        if len(dataset['y'].shape) == 3:
-            obs = NumpyDataSource(dataset['y'][0], time_offsets=time_offsets)
-        else:
-            obs = NumpyDataSource(dataset['y'], time_offsets=time_offsets)
-        return obs, beh
+    def get_from_saved_npz(filename, time_offsets):
+        obs, beh = get_from_saved_npz(filename=filename)
+        return NumpyDataSource(obs, time_offsets), NumpyDataSource(beh, time_offsets)
 
     def shorten(self, n):
         self.clear_range = (self.clear_range[0] + n, self.clear_range[1])

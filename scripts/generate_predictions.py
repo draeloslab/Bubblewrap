@@ -2,31 +2,27 @@ import numpy as np
 from bubblewrap import Bubblewrap, BWRun, NumpyPairedDataSource, AnimationManager, default_rwd_parameters, \
     SymmetricNoisyRegressor
 from bubblewrap.regressions import NearestNeighborRegressor
-from bubblewrap.input_sources.data_sources import HMMSimDataSourceSingle, NumpyDataSource, PairWrapperSource, \
-    ConcatenatorSource, ProSVDDataSourceSingle
-import bubblewrap.plotting_functions as bpf
-from copy import deepcopy
+from bubblewrap.input_sources.data_sources import HMMSimDataSourceSingle, NumpyDataSource, PairWrapperSource
+import bubblewrap.input_sources.functional as fin
 
-def get_data(file="jpca_reduced_sc.npz"):
+def get_data(file="monkey_reach_reduced.npz"):
     # monkey_reach_reduced.npz
     # jpca_reduced_sc.npz
-    obs, beh = NumpyDataSource.get_from_saved_npz(file, time_offsets=(0, 1, 5))
+    obs, beh = fin.get_from_saved_npz(file)
 
+    concatenated = fin.zscore(np.hstack([obs, beh]))
     input_datasets = {
-        'p(n)': obs,
-        'b': beh,
-        '[p(n), b]': ConcatenatorSource([obs, beh]),
-        'p3([p(n), b])': ProSVDDataSourceSingle(ConcatenatorSource([obs.drop_time_offsets(), beh.drop_time_offsets()]),
-                                                output_d=3, time_offsets=beh.time_offsets),
-        'p1([p(n), b])': ProSVDDataSourceSingle(ConcatenatorSource([obs.drop_time_offsets(), beh.drop_time_offsets()]),
-                                                output_d=1, time_offsets=beh.time_offsets),
-        'p1(p(n))': ProSVDDataSourceSingle(obs.drop_time_offsets(), output_d=1, time_offsets=beh.time_offsets),
+        'p(n)': fin.zscore(obs),
+        'b': fin.zscore(beh),
+        '[p(n), b]': concatenated,
+        'p3([p(n), b])': fin.prosvd_data(concatenated, 3, 30),
+        'p1([p(n), b])': fin.prosvd_data(concatenated, 1, 30),
+        'p1(p(n))': fin.prosvd_data(fin.zscore(obs), 1, 30),
     }
     output_datasets = {
         'b': beh,
-        'p1([p(n), b])': ProSVDDataSourceSingle(ConcatenatorSource([obs.drop_time_offsets(), beh.drop_time_offsets()]),
-                                                 output_d=1, time_offsets=beh.time_offsets),
-        'p1(p(n))': ProSVDDataSourceSingle(obs.drop_time_offsets(), output_d=1, time_offsets=beh.time_offsets),
+        'p1(p(n))': fin.prosvd_data(fin.zscore(obs), 1, 30),
+        'p1([p(n), b])': fin.prosvd_data(concatenated, 1, 30),
     }
     return input_datasets, output_datasets
 
@@ -41,10 +37,13 @@ def main():
 
     for ikey in input_keys:
         for okey in output_keys:
-            ds = PairWrapperSource(deepcopy(input_datasets[ikey]), deepcopy(output_datasets[okey]))
+            i = input_datasets[ikey]
+            o  = output_datasets[okey]
+            l = min(len(i), len(o))
+            ds = PairWrapperSource(NumpyDataSource(i[:l], time_offsets=(1,5)), NumpyDataSource(o[:l], time_offsets=(1,5)))
+
             bw = Bubblewrap(dim=ds.output_shape[0], **default_rwd_parameters)
-            # reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=ds.output_shape[1])
-            reg = NearestNeighborRegressor(input_d=bw.N, output_d=ds.output_shape[1])
+            reg = SymmetricNoisyRegressor(input_d=bw.N, output_d=ds.output_shape[1])
             br = BWRun(bw=bw, data_source=ds, behavior_regressor=reg, show_tqdm=True,
                        output_directory="/home/jgould/Documents/Bubblewrap/generated/bubblewrap_runs/")
 
@@ -52,14 +51,9 @@ def main():
             err = np.squeeze(br.behavior_error_history[1][-1000:])
             pred = np.squeeze(br.behavior_pred_history[1][-1000:])
             correct = pred - err
-            # print(f"{(br.behavior_error_history[1][-1000:] ** 2).mean()}\t", end=None)
             print(f"{np.corrcoef(pred, correct)[0,1]}\t", end="")
         print()
 
 
 if __name__ == '__main__':
     main()
-    # import pickle
-    # with open('/home/jgould/Documents/Bubblewrap/generated/bubblewrap_runs/bubblewrap_run_2023-08-31-18-03-47.pickle', 'rb') as fhan:
-    #     br = pickle.load(fhan)
-    #     br

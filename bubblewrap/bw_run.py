@@ -53,6 +53,7 @@ class BWRun:
             self.A_history = []
 
         self.saved = False
+        self.frozen = False
 
         obs_dim, beh_dim = self.data_source.output_shape
         assert obs_dim == self.bw.d
@@ -60,7 +61,7 @@ class BWRun:
             assert beh_dim == self.behavior_regressor.output_d
         # note that if there is no behavior, the behavior dimensions will be zero
 
-    def run(self, save=True, limit=None):
+    def run(self, save=True, limit=None, freeze=True):
         start_time = time.time()
 
         if len(self.data_source) < self.bw.M:
@@ -92,8 +93,12 @@ class BWRun:
 
         self.runtime = time.time() - start_time
 
+        if freeze:
+            self.finish_and_remove_jax()
         if save:
-            self.save()
+            self.saved = True
+            with open(self.pickle_file, "wb") as fhan:
+                pickle.dump(self, fhan)
 
     def log_for_step(self, step, offset_pairs):
         # TODO: allow skipping of (e.g. entropy) steps?
@@ -121,6 +126,7 @@ class BWRun:
             self.animation_manager.draw_frame(step, self.bw, self)
 
     def finish_and_remove_jax(self):
+        self.frozen = True
         if self.animation_manager:
             self.animation_manager.finish()
             del self.animation_manager
@@ -140,13 +146,33 @@ class BWRun:
 
         self.bw.freeze()
 
-    def save(self, freeze=True):
-        self.saved = True
-        if freeze:
-            self.finish_and_remove_jax()
+    # Metrics
+    def _last_half_index(self):
+        assert self.frozen
+        assert self.data_source.time_offsets
+        pred = self.prediction_history[self.data_source.time_offsets[0]]
+        assert np.isfinite(pred)
+        return len(pred)//2
 
-        with open(self.pickle_file, "wb") as fhan:
-            pickle.dump(self, fhan)
+    def behavior_pred_corr(self, offset):
+        pred, true, err = self.get_behavior_last_half(offset)
+        assert np.all(np.isfinite(true))
+        return np.corrcoef(pred, true)[0,1]
+
+    def get_behavior_last_half(self, offset):
+        i = self._last_half_index()
+        pred = self.behavior_pred_history[offset][-i:]
+        err = self.behavior_error_history[offset][-i:]
+        true = pred - err
+        return pred, true, err
+
+    def log_pred_p_summary(self, offset):
+        i = self._last_half_index()
+        return self.prediction_history[offset][-i:].mean()
+
+    def entropy_summary(self, offset):
+        i = self._last_half_index()
+        return self.entropy_history[offset][-i:].mean()
 
 
 class AnimationManager:
