@@ -16,13 +16,7 @@ authors = [{name = "Anne Draelos"},
 readme = "README.md"
 requires-python = ">=3.7"
 keywords = ["neuroscience", "prediction", "dynamics"]
-dependencies = [
-    "numpy",
-    "matplotlib",
-    "scikit-learn",
-    "jax[cpu]",
-    "tqdm",
-]
+dependencies = [] # todo: might be able to migrate pyproject.toml to requirements.txt and then use dynamic metadata?
 
 
 [tool.setuptools]

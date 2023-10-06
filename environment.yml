@@ -9,3 +9,8 @@ dependencies:
   - jaxlib
   - jax
   - tqdm
+  - pyyaml
+  - pytest
+  - pandas
+  - ffmpeg
+  - jupyter
