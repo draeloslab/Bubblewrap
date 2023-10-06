@@ -18,6 +18,8 @@ def make_hashable(x):
 
 
 def save_to_cache(file, location=os.path.join(bubblewrap.config.CONFIG["data_path"], "cache")):
+    if not os.path.exists(location):
+        os.mkdir(location)
     cache_index_file = os.path.join(location, f"{file}_index.pickle")
     try:
         with open(cache_index_file, 'rb') as fhan:

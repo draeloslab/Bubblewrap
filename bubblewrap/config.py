@@ -1,28 +1,21 @@
 import yaml
 import os
 import pathlib
-import warnings
 
 config_file_name = "bw_config.yaml"
-fallback_path = pathlib.Path(__file__).resolve().parent
-
 
 def get_raw_config():
     pwd = pathlib.Path(os.curdir).resolve()
-    for path in [pwd] + list(pwd.parents) + [fallback_path]:
+    for path in [pwd] + list(pwd.parents):
         file_candidate = path / config_file_name
         if os.path.exists(file_candidate) and os.path.isfile(file_candidate):
             with open(file_candidate, 'r') as fhan:
                 return yaml.safe_load(fhan), path
-    raise Exception("No config file found, even at the fallback location.")
+    raise Exception("No config file found.")
 
 
 def make_paths_absolute(config, path):
     # todo: this is hacky, but it works for now
-    if path == fallback_path and os.getlogin() != 'jgould':
-        warnings.warn("Loading the fallback config file.")
-        path = pathlib.Path(os.curdir).resolve()
-
     new_config = {}
     for key, value in config.items():
         if type(value) == str:

@@ -1,0 +1,3 @@
+attempt_to_cache: True # this only applies to the bubblewrap.input_sources.functional file
+data_path: ./generated/datasets
+output_path: ./generated
