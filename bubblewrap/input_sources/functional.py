@@ -4,6 +4,8 @@ import pickle
 import json
 from proSVD import proSVD
 import bubblewrap
+from tqdm import tqdm
+import hashlib
 
 
 
@@ -32,11 +34,12 @@ def save_to_cache(file, location=os.path.join(bubblewrap.config.CONFIG["data_pat
             return original_function
 
         def new_function(**kwargs):
-            kwargs_as_key = make_hashable(kwargs)
+            kwargs_as_key = int(hashlib.sha1(make_hashable(kwargs)).hexdigest(), 16)
+
             if kwargs_as_key not in cache_index:
                 result = original_function(**kwargs)
 
-                hstring = str(hash(make_hashable(result)))[-15:]
+                hstring = str(kwargs_as_key)[-15:]
                 cache_file = os.path.join(location,f"{file}_{hstring}.pickle")
                 with open(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
@@ -69,7 +72,7 @@ def prosvd_data(input_arr, output_d, init_size):
     pro.initialize(input_arr[:init_size].T)
 
     output = []
-    for i in range(init_size, len(input_arr)):
+    for i in tqdm(range(init_size, len(input_arr))):
         obs = input_arr[i:i + 1, :]
         pro.preupdate()
         pro.updateSVD(obs.T)
@@ -82,11 +85,29 @@ def prosvd_data(input_arr, output_d, init_size):
 
 
 def zscore(input_arr, init_size=6):
+    mean = 0
+    m2 = 1e-4
     output = []
-    for i in range(len(input_arr)):
-        if i > init_size:
-            output.append((input_arr[i] - input_arr[:i].mean(axis=0)) / input_arr[:i].std(ddof=1, axis=0))
+    for i, x in enumerate(tqdm(input_arr)):
+        if i >= init_size:
+            std = np.sqrt(m2 / (i - 1))
+            output.append((x - mean) / std)
+
+        delta = x - mean
+        mean += delta / (i + 1)
+        m2 += delta * (x - mean)
+
     return np.array(output)
+
+
+def shuffle_time(input_arr_list, rng=None):
+    if rng is None:
+        rng = np.random.default_rng()
+
+    p = rng.permutation(input_arr_list[0].shape[0])
+
+    return (x[p,:] for x in input_arr_list)
+
 
 @save_to_cache("bwrap_alphas")
 def bwrap_alphas(input_arr, bw_params):
@@ -109,10 +130,10 @@ def bwrap_alphas(input_arr, bw_params):
     return np.array(alphas)
 
 @save_to_cache("bwrap_alphas_ahead")
-def bwrap_alphas_ahead(input_arr, bw_params, nsteps=1):
-    alphas = []
+def bwrap_alphas_ahead(input_arr, bw_params, nsteps=(1,)):
+    returns = {x:[] for x in nsteps}
     bw = bubblewrap.Bubblewrap(dim=input_arr.shape[1], **bw_params)
-    for step in range(len(input_arr)):
+    for step in tqdm(range(len(input_arr))):
         bw.observe(input_arr[step])
 
         if step < bw.M:
@@ -125,8 +146,18 @@ def bwrap_alphas_ahead(input_arr, bw_params, nsteps=1):
             bw.e_step()
             bw.grad_Q()
 
-            alphas.append(bw.alpha @ np.linalg.matrix_power(bw.A, nsteps))
-    return np.array(alphas)
+            for step in nsteps:
+                returns[step].append(bw.alpha @ np.linalg.matrix_power(bw.A, step))
+    returns = {x: np.array(returns[x]) for x in returns}
+    return returns
+
+def clip(*args):
+    l = min([len(a) for a in args])
+    args = [a[-l:] for a in args]
+
+    l = max([np.nonzero(np.all(np.isfinite(a), axis=1))[0][0] for a in args])
+    args = [a[l:] for a in args]
+    return args
 
 
 def main():

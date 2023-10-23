@@ -8,6 +8,7 @@ conda activate bubblewrap
 mkdir dist
 pip install -e .
 pytest .
+python scripts/main.py
 ```
 
 

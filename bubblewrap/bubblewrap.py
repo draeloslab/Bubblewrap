@@ -172,7 +172,8 @@ class Bubblewrap():
                                                                                                  self.alpha, self.En,
                                                                                                  self.eps, self.S1, x,
                                                                                                  self.S2, self.n_obs)
-
+        if not self.go_fast and np.any(np.isnan(self.alpha)):
+            raise Exception("There's a NaN in the alphas, something's wrong.")
         self.t += 1
 
     def update_B(self, x):
