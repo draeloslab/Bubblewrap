@@ -7,7 +7,7 @@ conda env create --file=environment.yml
 conda activate bubblewrap
 mkdir dist
 pip install -e .
-pytest .
+pytest .  # (optional)
 python scripts/main.py
 ```
 

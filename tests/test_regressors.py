@@ -63,5 +63,4 @@ def test_nan_at_right_time(reg_maker, rng):
 
 
 def test_output_shapes_are_correct(reg_maker, rng):
-
-    reg = reg_maker(input_d=2, output_d=1,)
+    assert False

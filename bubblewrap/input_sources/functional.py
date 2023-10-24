@@ -6,6 +6,8 @@ from proSVD import proSVD
 import bubblewrap
 from tqdm import tqdm
 import hashlib
+import h5py
+from bubblewrap.config import CONFIG
 
 
 
@@ -152,13 +154,69 @@ def bwrap_alphas_ahead(input_arr, bw_params, nsteps=(1,)):
     return returns
 
 def clip(*args):
+    """this assumes the last elements match timepoints, and that timepoints with any nans should be dropped"""
     l = min([len(a) for a in args])
     args = [a[-l:] for a in args]
 
-    l = max([np.nonzero(np.all(np.isfinite(a), axis=1))[0][0] for a in args])
-    args = [a[l:] for a in args]
+    m = 0
+    for arg in args:
+        fin = np.isfinite(arg)
+        if len(fin.shape) > 1:
+            assert len(fin.shape) == 2
+            fin = np.all(fin, axis=1)
+        m = max(m, np.nonzero(fin)[0][0])
+
+    args = [a[m:] for a in args]
     return args
 
+
+def get_indy_data(bin_width=.03):
+    """
+    bin_width is in seconds
+    """
+
+    fhan = h5py.File(CONFIG["data_path"] / 'indy_20160407_02.mat', 'r')
+
+    # this is a first pass I'm using to find the first and last spikes
+    l = []
+    for j in range(fhan['spikes'].shape[1]):
+        for i in range(fhan['spikes'].shape[0]):
+            v = np.squeeze(fhan[fhan['spikes'][i, j]])
+            if v[0] > 50:  # empy channels have one spike very early; we want the other channels
+                l.append(v)
+
+    # this finds the first and last spikes in the dataset, so we can set our bin boundaries
+    ll = [leaf for tree in l for leaf in tree]  # puts all the spike times into a flat list
+    stop = np.ceil(max(ll))
+    start = np.floor(min(ll))
+
+    # this creates the bins we'll use to group spikes
+    bins = np.arange(start, stop, bin_width)
+    bin_centers = np.convolve([.5, .5], bins, "valid")
+
+    # columns of A are channels, rows are time bins
+    A = np.zeros(shape=(bins.shape[0] - 1, len(l)))
+    c = 0  # we need this because some channels are empty
+    for j in range(fhan['spikes'].shape[1]):
+        for i in range(fhan['spikes'].shape[0]):
+            v = np.squeeze(fhan[fhan['spikes'][i, j]])
+            if v[0] > 50:
+                A[:, c], _ = np.histogram(np.squeeze(fhan[fhan['spikes'][i, j]]), bins=bins)
+                c += 1
+
+    # load behavior data
+    raw_behavior = fhan['finger_pos'][:].T
+    t = fhan["t"][0]
+
+    # this resamples the behavior so it's in sync with the binned spikes
+    behavior = np.zeros((bin_centers.shape[0], raw_behavior.shape[1]))
+    for c in range(behavior.shape[1]):
+        behavior[:, c] = np.interp(bin_centers, t, raw_behavior[:, c])
+
+    mask = bin_centers > 70 # behavior is near-constant before 70 seconds
+    bin_centers, behavior, A = bin_centers[mask], behavior[mask], A[mask]
+
+    return A, behavior, bin_centers
 
 def main():
     obs, beh = get_from_saved_npz("jpca_reduced_sc.npz")

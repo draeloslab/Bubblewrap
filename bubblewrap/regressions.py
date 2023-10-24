@@ -1,4 +1,5 @@
 import numpy as np
+from abc import ABC, abstractmethod
 from collections import deque
 
 
@@ -8,26 +9,30 @@ def rank_one_update_formula1(D, x1, x2=None):
     return D - (D @ x1 @ x2.T @ D) / (1 + x2.T @ D @ x1)
 
 
-class OnlineRegressor:
+class OnlineRegressor(ABC):
     def __init__(self, input_d, output_d):
         self.input_d = input_d
         self.output_d = output_d
 
+    @abstractmethod
     def initialize(self, use_stored=True, x_history=None, y_history=None):
         """This is called when the algorithm has enough information to start making predictions; it initializes the
         regression. Usually use_stored will be true, and the algorithm will use previously observed data, but x and y
         can also be passed in as the initialization data."""
         pass
 
+    @abstractmethod
     def safe_observe(self, x, y):
         """This function saves an observation and possibly updates internal parameters if the regressor has seen enough
         data."""
         pass
 
+    @abstractmethod
     def observe(self, x, y):
         """This is the function called after observing a data point; usually you want lazy_observe."""
         pass
 
+    @abstractmethod
     def predict(self, x):
         pass
 
@@ -286,6 +291,30 @@ class NearestNeighborRegressor(OnlineRegressor):
         except ValueError:
             return np.nan * np.empty(shape=(self.output_d,))
         return self.history[idx, self.input_d:]
+
+
+class AutoRegressor(OnlineRegressor):
+    def __init__(self, input_d, output_d):
+        super().__init__(input_d, output_d)
+        self.history = None
+
+    def safe_observe(self, x, y):
+        self.observe(x,y)
+
+    def observe(self, x, y):
+        self.history = y
+
+    def predict(self, x):
+        if self.history is None:
+            return np.nan * np.empty(shape=(self.output_d,))
+
+        return self.history
+
+    def initialize(self, use_stored=True, x_history=None, y_history=None):
+        if use_stored:
+            pass
+        else:
+            self.history = y_history[-1]
 
 
 """
