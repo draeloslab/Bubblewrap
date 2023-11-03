@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
 from .input_sources.functional import save_to_cache
-from .input_sources.data_sources import NumpyPairedDataSource
+from .input_sources.data_sources import NumpyPairedDataSource, NumpyTimedDataSource
 import warnings
 import time
 from .config import CONFIG
@@ -27,17 +27,18 @@ def simple_bw_run(input_array, bw_params, time_offsets=(1,)):
     return br
 
 class BWRun:
-    def __init__(self, bw, data_source, behavior_regressors=(), animation_manager=None, save_A=False, show_tqdm=True,
+    def __init__(self, bw, obs_ds, beh_ds=None, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True,
                  output_directory=CONFIG["output_path"]/"bubblewrap_runs"):
-        # todo: add total runtime tracker
-        self.data_source: ConsumableDataSource = data_source
+
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
+        self.obs_ds = obs_ds
+        self.beh_ds = beh_ds
 
         # only keep a behavior regressor if there is behavior
-        self.behavior_regressors = []
-        if self.data_source.output_shape[1] > 0:
-            self.behavior_regressors: [OnlineRegressor] = behavior_regressors
+        self.behavior_regressor = None
+        if self.beh_ds and self.beh_ds.output_shape > 0:
+            self.behavior_regressor : OnlineRegressor = behavior_regressor
 
 
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -51,11 +52,13 @@ class BWRun:
         self.show_tqdm = show_tqdm
 
         # todo: history_of object?
-        self.prediction_history = {k: [] for k in data_source.time_offsets}
-        self.entropy_history = {k: [] for k in data_source.time_offsets}
-        self.behavior_pred_history = [{k: [] for k in data_source.time_offsets} for i in range(len(self.behavior_regressors))]
-        self.behavior_error_history = [{k: [] for k in data_source.time_offsets} for i in range(len(self.behavior_regressors))]
-        self.alpha_history = {k: [] for k in data_source.time_offsets}
+        self.prediction_history = {k: [] for k in obs_ds.time_offsets}
+        self.entropy_history = {k: [] for k in obs_ds.time_offsets}
+        self.behavior_pred_history = {k: [] for k in obs_ds.time_offsets}
+        self.behavior_error_history = {k: [] for k in obs_ds.time_offsets}
+        self.alpha_history = {k: [] for k in obs_ds.time_offsets}
+        self.bw_timepoint_history = []
+        self.reg_timepoint_history = []
         self.runtime = None
 
         self.n_living_history = []
@@ -65,43 +68,74 @@ class BWRun:
         self.saved = False
         self.frozen = False
 
-        obs_dim, beh_dim = self.data_source.output_shape
+        obs_dim = self.obs_ds.output_shape
         assert obs_dim == self.bw.d
-        if self.behavior_regressors:
-            for r in self.behavior_regressors:
-                assert beh_dim == r.output_d
+        if self.behavior_regressor:
+            assert self.beh_ds.output_shape == self.behavior_regressor.output_d
         # note that if there is no behavior, the behavior dimensions will be zero
 
     def run(self, save=False, limit=None, freeze=True):
         start_time = time.time()
 
-        if len(self.data_source) < self.bw.M:
+        if len(self.obs_ds) < self.bw.M:
             warnings.warn("Data length shorter than initialization.")
 
         if limit is None:
-            limit = len(self.data_source)
-        limit = min(len(self.data_source), limit)
+            limit = len(self.obs_ds)
+        limit = min(len(self.obs_ds), limit)
 
-        # todo: make a wrapper around data streams that works with TQDM
-        generator = tqdm(self.data_source.triples(limit=limit),
-                         total=limit) if self.show_tqdm else self.data_source.triples(limit=limit)
-        for step, (obs, beh, offset_pairs) in enumerate(generator):
-            self.bw.observe(obs)
+        bw_step = 0
+        obs_next_t, obs_done = self.obs_ds.preview_next_timepoint()
+        if self.beh_ds:
+            beh_next_t, beh_done = self.beh_ds.preview_next_timepoint()
+        else:
+            beh_next_t, beh_done = float("inf"), True
 
-            if step < self.bw.M:
-                pass
-            elif step == self.bw.M:
-                self.bw.init_nodes()
-                self.bw.e_step()  # todo: is this OK?
-                self.bw.grad_Q()
+        while not (obs_done and beh_done) and bw_step <= limit:
+            if beh_done or obs_next_t < beh_next_t:
+                obs = next(self.obs_ds)
+                self.bw.observe(obs)
+                self.bw_timepoint_history.append(self.obs_ds.current_timepoint())
+
+                if bw_step < self.bw.M:
+                    bw_step += 1
+                    continue
+                elif bw_step == self.bw.M:
+                    self.bw.init_nodes()
+                    self.bw.e_step()  # todo: is this OK?
+                    self.bw.grad_Q()
+                else:
+                    self.bw.e_step()
+                    self.bw.grad_Q()
+
+                pairs = {}
+                for offset in self.obs_ds.time_offsets:
+                    pairs[offset] = self.obs_ds.get_atemporal_data_point(offset)
+                self.bw_log_for_step(bw_step, pairs)
+                bw_step += 1
             else:
-                self.bw.e_step()
-                self.bw.grad_Q()
+                beh = next(self.beh_ds)
+                if hasattr(self.bw, 'alpha'):
+                    self.reg_timepoint_history.append(self.beh_ds.current_timepoint())
+                    if self.behavior_regressor:
+                        self.behavior_regressor.safe_observe(self.bw.alpha, beh)
 
-                if self.behavior_regressors:
-                    for i in range(len(self.behavior_regressors)):
-                        self.behavior_regressors[i].safe_observe(self.bw.alpha, beh)
-                self.log_for_step(step, offset_pairs)
+                        for offset in self.beh_ds.time_offsets:
+                            b = self.beh_ds.get_atemporal_data_point(offset)
+                            alpha_ahead = self.alpha_history[offset][-1]
+                            bp = self.behavior_regressor.predict(alpha_ahead)
+
+                            self.behavior_pred_history[offset].append(bp)
+                            self.behavior_error_history[offset].append(bp - b)
+
+            obs_next_t, obs_done = self.obs_ds.preview_next_timepoint()
+            if self.beh_ds:
+                beh_next_t, beh_done = self.beh_ds.preview_next_timepoint()
+            else:
+                beh_next_t, beh_done = float("inf"), True
+
+
+
 
         self.runtime = time.time() - start_time
 
@@ -112,9 +146,9 @@ class BWRun:
             with open(self.pickle_file, "wb") as fhan:
                 pickle.dump(self, fhan)
 
-    def log_for_step(self, step, offset_pairs):
+    def bw_log_for_step(self, step, offset_pairs):
         # TODO: allow skipping of (e.g. entropy) steps?
-        for offset, (o, b) in offset_pairs.items():
+        for offset, o in offset_pairs.items():
             p = self.bw.pred_ahead(self.bw.logB_jax(o, self.bw.mu, self.bw.L, self.bw.L_diag), self.bw.A, self.bw.alpha,
                                    offset)
             self.prediction_history[offset].append(p)
@@ -123,13 +157,13 @@ class BWRun:
             self.entropy_history[offset].append(e)
             self.alpha_history[offset].append(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset))
 
-            if self.behavior_regressors:
-                for i in range(len(self.behavior_regressors)):
-                    alpha_ahead = np.array(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)).reshape(-1, 1)
-                    bp = self.behavior_regressors[i].predict(alpha_ahead)
-
-                    self.behavior_pred_history[i][offset].append(bp)
-                    self.behavior_error_history[i][offset].append(bp - b)
+            # if self.behavior_regressors:
+            #     for i in range(len(self.behavior_regressors)):
+            #         alpha_ahead = np.array(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)).reshape(-1, 1)
+            #         bp = self.behavior_regressors[i].predict(alpha_ahead)
+            #
+            #         self.behavior_pred_history[i][offset].append(bp)
+            #         self.behavior_error_history[i][offset].append(bp - b)
 
         self.n_living_history.append(self.bw.N - len(self.bw.dead_nodes))
         if self.save_A:
@@ -149,9 +183,12 @@ class BWRun:
 
         self.prediction_history = convert_dict(self.prediction_history)
         self.entropy_history = convert_dict(self.entropy_history)
-        self.behavior_pred_history = [convert_dict(x) for x in self.behavior_pred_history]
-        self.behavior_error_history = [convert_dict(x) for x in self.behavior_error_history]
+        self.behavior_pred_history = convert_dict(self.behavior_pred_history)
+        self.behavior_error_history = convert_dict(self.behavior_error_history)
         self.alpha_history = convert_dict(self.alpha_history)
+
+        self.bw_timepoint_history = np.array(self.bw_timepoint_history)
+        self.reg_timepoint_history = np.array(self.reg_timepoint_history)
 
         self.n_living_history = np.array(self.n_living_history)
         if self.save_A:
@@ -177,8 +214,8 @@ class BWRun:
 
     def _last_half_index(self):
         assert self.frozen
-        assert self.data_source.time_offsets
-        pred = self.prediction_history[self.data_source.time_offsets[0]]
+        assert self.obs_ds.time_offsets
+        pred = self.prediction_history[self.obs_ds.time_offsets[0]]
         assert np.isfinite(pred)
         return len(pred)//2
 

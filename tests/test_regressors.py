@@ -62,8 +62,35 @@ def test_nan_at_right_time(reg_maker, rng):
 
 
 def test_output_shapes_are_correct(reg_maker, rng):
-    assert False
+    for n, m in [(1,1), (1, 3), (3,1), (3,4)]:
+        reg = reg_maker(n, m)
+        assert reg.predict(np.zeros(n)).shape == (m,)
+
+        n_samples = 1_000
+        inputs = rng.normal(size=(n_samples, n))
+        outputs = rng.normal(size=(n_samples, m))
+        for i in range(n_samples):
+            reg.safe_observe(inputs[i], outputs[i])
+
+        assert reg.predict(np.zeros(n)).shape == (m,)
+
 
 
 def test_will_ignore_nan_inputs(reg_maker, rng):
-    assert False
+    for n, m in [(1,1), (1, 3), (3,1), (3,4)]:
+        reg = reg_maker(n, m)
+
+        n_samples = 1_000
+        inputs = rng.normal(size=(n_samples, n))
+        outputs = rng.normal(size=(n_samples, m))
+
+        mask = rng.random(size=n_samples) < 0.15
+        inputs[mask] *= np.nan
+
+        mask = rng.random(size=n_samples) < 0.15
+        outputs[mask] *= np.nan
+
+        for i in range(n_samples):
+            reg.safe_observe(inputs[i], outputs[i])
+
+        assert np.all(np.isfinite(reg.predict(np.zeros(n))))

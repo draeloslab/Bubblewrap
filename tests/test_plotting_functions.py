@@ -13,10 +13,10 @@ def test_axis_plots(make_br):
     ax = axs[0]
     br:BWRun = make_br()
     bw = br.bw
-    obs, beh = br.data_source.get_history()
+    obs, beh = br.obs_ds.get_history(), br.beh_ds.get_history()
 
     offset = 3
-    predicted_location, _ = br.data_source.get_atemporal_data_point(offset=offset)
+    predicted_location = br.obs_ds.get_atemporal_data_point(offset=offset)
 
     ### good ###
     bpf.show_bubbles_2d(ax, obs, bw)

@@ -34,10 +34,6 @@ class DataSource(ABC):
     def get_history(self, depth=None):
         pass
 
-    @abstractmethod
-    def shorten(self, n):
-        pass
-
     def __len__(self):
         return self.length
 
@@ -208,71 +204,68 @@ class ConsumableDataSource(DataSource, ABC):
 #             self.future.append((obs[i], beh[i]))
 
 
-# class NumpyDataSource(DataSource):
-#     def __init__(self, a, time_offsets=()):
-#         a = np.array(a)
-#         if len(a.shape) == 1:
-#             a = a[:, None]
-#         super().__init__(output_shape=len(a[0]), time_offsets=time_offsets)
-#         self.a = a
-#
-#         self.clear_range = (0, len(a))
-#         if self.time_offsets:
-#             self.clear_range = (max(0, -min(time_offsets)), len(a) - max(max(time_offsets), 0))
-#
-#         self.length = self.clear_range[1] - self.clear_range[0]
-#         self.index = 0
-#
-#     def drop_time_offsets(self):
-#         return NumpyDataSource(self.a)
-#
-#     @staticmethod
-#     def get_from_saved_npz(filename, time_offsets):
-#         obs, beh = get_from_saved_npz(filename=filename)
-#         return NumpyDataSource(obs, time_offsets), NumpyDataSource(beh, time_offsets)
-#
-#     def shorten(self, n):
-#         self.clear_range = (self.clear_range[0] + n, self.clear_range[1])
-#         self.length = self.clear_range[1] - self.clear_range[0]
-#
-#     def __iter__(self):
-#         return self
-#
-#     def __next__(self):
-#         try:
-#             d = self._get_item(self.index, offset=0)
-#         except IndexError:
-#             raise StopIteration()
-#
-#         self.index += 1
-#         return d
-#
-#     #
-#     def get_atemporal_data_point(self, offset=0):
-#         """gets a data pair relative to the present pair"""
-#         return self._get_item(item=self.index - 1, offset=offset)
-#
-#     #
-#     def _get_item(self, item, offset=0):
-#         if item < 0:
-#             raise IndexError("Negative indexes are not supported.")
-#
-#         if item >= len(self):
-#             raise IndexError("Index out of range.")
-#
-#         inside_index = item + self.clear_range[0] + offset
-#         return self.a[inside_index]
-#
-#     def get_history(self, depth=None):
-#         slice_end = self.index + self.clear_range[0]
-#         slice_start = self.clear_range[0]
-#         if depth is not None:
-#             slice_start = slice_end - depth
-#
-#         if slice_start < self.clear_range[0]:
-#             raise IndexError()
-#
-#         return self.a[slice_start:slice_end]
+class NumpyTimedDataSource(DataSource):
+    def __init__(self, a, timepoints, time_offsets=()):
+        a = np.array(a)
+        if len(a.shape) == 1:
+            a = a[:, None]
+        super().__init__(output_shape=len(a[0]), time_offsets=time_offsets)
+        self.a = a
+        self.t = timepoints if timepoints else np.arange(a.shape[0])
+        assert len(self.t) == len(self.a)
+
+        self.clear_range = (0, len(a))
+        if self.time_offsets:
+            self.clear_range = (max(0, -min(time_offsets)), len(a) - max(max(time_offsets), 0))
+
+        self.length = self.clear_range[1] - self.clear_range[0]
+        self.index = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            d = self._get_item(self.index, offset=0)
+        except IndexError:
+            raise StopIteration()
+
+        self.index += 1
+        return d
+
+    def current_timepoint(self):
+        return self.t[self.index]
+
+    def preview_next_timepoint(self):
+        return self.t[self.index + 1], self.index + 1 >= len(self)
+
+    #
+    def get_atemporal_data_point(self, offset=0):
+        """gets a data pair relative to the present pair"""
+        return self._get_item(item=self.index - 1, offset=offset)
+
+    #
+    def _get_item(self, item, offset=0):
+        if item < 0:
+            raise IndexError("Negative indexes are not supported.")
+
+        if item >= len(self):
+            raise IndexError("Index out of range.")
+
+        inside_index = item + self.clear_range[0] + offset
+        return self.a[inside_index]
+
+
+    def get_history(self, depth=None):
+        slice_end = self.index + self.clear_range[0]
+        slice_start = self.clear_range[0]
+        if depth is not None:
+            slice_start = slice_end - depth
+
+        if slice_start < self.clear_range[0]:
+            raise IndexError()
+
+        return self.a[slice_start:slice_end]
 
 
 class NumpyPairedDataSource(ConsumableDataSource):

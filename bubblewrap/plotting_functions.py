@@ -172,9 +172,9 @@ def show_A(ax, bw):
 #     ax.set_ylim([min(old_ylim[0], new_ylim[0]), max(old_ylim[1], new_ylim[1])])
 
 
-def show_alpha(ax, br):
+def show_alpha(ax, br, offset=0):
     ax.cla()
-    ims = ax.imshow(np.array(br.alpha_history[-19:] + [br.bw.alpha]).T, aspect='auto', interpolation='nearest')
+    ims = ax.imshow(np.array(br.alpha_history[0][-19:] + [br.bw.alpha]).T, aspect='auto', interpolation='nearest')
 
     ax.set_title("State Estimate ($\\alpha$)")
     live_nodes = [x for x in np.arange(br.bw.N) if x not in br.bw.dead_nodes]
@@ -260,8 +260,8 @@ def show_nstep_pred_pdf(ax, br, other_axis, fig, offset=1):
     cmesh = ax.pcolormesh(x_bins, y_bins, pdf.T)
     fig.colorbar(cmesh)
 
-    current_location, _ = br.data_source.get_atemporal_data_point(0)
-    offset_location, _ = br.data_source.get_atemporal_data_point(offset)
+    current_location = br.obs_ds.get_atemporal_data_point(0)
+    offset_location = br.obs_ds.get_atemporal_data_point(offset)
 
     ax.scatter(offset_location[0], offset_location[1], c='white')
 

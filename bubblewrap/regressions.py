@@ -104,11 +104,11 @@ class SymmetricNoisyRegressor(OnlineRegressor):
 
     def predict(self, x):
         if self.D is None:
-            return np.squeeze(np.nan * np.ones(shape=[self.output_d, ]))
+            return np.nan * np.ones(shape=[self.output_d, ])
 
         w = self.D @ self.c
 
-        return np.squeeze(x.T @ w)
+        return x.T @ w
 
 
 # class SlowWindowRegressor(OnlineRegressor):
@@ -257,7 +257,7 @@ class WindowRegressor(OnlineRegressor):
             return np.nan * np.ones(shape=[self.output_d, ])
 
         w = self.D @ self.c
-        return np.squeeze(x.T @ w)
+        return x.T @ w
 
 
 class NearestNeighborRegressor(OnlineRegressor):
