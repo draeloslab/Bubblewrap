@@ -61,6 +61,9 @@ def test_nan_at_right_time(reg_maker, rng):
     assert np.all(~np.isnan(reg.predict(x)))
 
 
-
 def test_output_shapes_are_correct(reg_maker, rng):
+    assert False
+
+
+def test_will_ignore_nan_inputs(reg_maker, rng):
     assert False

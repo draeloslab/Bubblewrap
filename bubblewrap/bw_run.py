@@ -6,6 +6,8 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FFMpegFileWriter
+from .input_sources.functional import save_to_cache
+from .input_sources.data_sources import NumpyPairedDataSource
 import warnings
 import time
 from .config import CONFIG
@@ -16,19 +18,27 @@ if TYPE_CHECKING:
     from .input_sources.data_sources import NumpyPairedDataSource, ConsumableDataSource
     from .regressions import OnlineRegressor
 
+@save_to_cache("simple_bw_run")
+def simple_bw_run(input_array, bw_params, time_offsets=(1,)):
+    ds = NumpyPairedDataSource(input_array, time_offsets=time_offsets)
+    bw = Bubblewrap(input_array.shape[1], **bw_params)
+    br = BWRun(bw, ds, show_tqdm=True)
+    br.run(save=True)
+    return br
 
 class BWRun:
-    def __init__(self, bw, data_source, behavior_regressor=None, animation_manager=None, save_A=False, show_tqdm=True,
-                 output_directory=os.path.join(CONFIG["output_path"],"bubblewrap_runs")):
+    def __init__(self, bw, data_source, behavior_regressors=(), animation_manager=None, save_A=False, show_tqdm=True,
+                 output_directory=CONFIG["output_path"]/"bubblewrap_runs"):
         # todo: add total runtime tracker
         self.data_source: ConsumableDataSource = data_source
         self.bw: Bubblewrap = bw
         self.animation_manager: AnimationManager = animation_manager
 
         # only keep a behavior regressor if there is behavior
-        self.behavior_regressor = None
+        self.behavior_regressors = []
         if self.data_source.output_shape[1] > 0:
-            self.behavior_regressor: OnlineRegressor = behavior_regressor
+            self.behavior_regressors: [OnlineRegressor] = behavior_regressors
+
 
         time_string = datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
         self.output_prefix = os.path.join(output_directory, f"bubblewrap_run_{time_string}")
@@ -43,11 +53,11 @@ class BWRun:
         # todo: history_of object?
         self.prediction_history = {k: [] for k in data_source.time_offsets}
         self.entropy_history = {k: [] for k in data_source.time_offsets}
-        self.behavior_pred_history = {k: [] for k in data_source.time_offsets}
-        self.behavior_error_history = {k: [] for k in data_source.time_offsets}
+        self.behavior_pred_history = [{k: [] for k in data_source.time_offsets} for i in range(len(self.behavior_regressors))]
+        self.behavior_error_history = [{k: [] for k in data_source.time_offsets} for i in range(len(self.behavior_regressors))]
+        self.alpha_history = {k: [] for k in data_source.time_offsets}
         self.runtime = None
 
-        self.alpha_history = []
         self.n_living_history = []
         if save_A:
             self.A_history = []
@@ -57,11 +67,12 @@ class BWRun:
 
         obs_dim, beh_dim = self.data_source.output_shape
         assert obs_dim == self.bw.d
-        if self.behavior_regressor:
-            assert beh_dim == self.behavior_regressor.output_d
+        if self.behavior_regressors:
+            for r in self.behavior_regressors:
+                assert beh_dim == r.output_d
         # note that if there is no behavior, the behavior dimensions will be zero
 
-    def run(self, save=True, limit=None, freeze=True):
+    def run(self, save=False, limit=None, freeze=True):
         start_time = time.time()
 
         if len(self.data_source) < self.bw.M:
@@ -87,8 +98,9 @@ class BWRun:
                 self.bw.e_step()
                 self.bw.grad_Q()
 
-                if self.behavior_regressor:
-                    self.behavior_regressor.safe_observe(self.bw.alpha, beh)
+                if self.behavior_regressors:
+                    for i in range(len(self.behavior_regressors)):
+                        self.behavior_regressors[i].safe_observe(self.bw.alpha, beh)
                 self.log_for_step(step, offset_pairs)
 
         self.runtime = time.time() - start_time
@@ -109,15 +121,16 @@ class BWRun:
 
             e = self.bw.get_entropy(self.bw.A, self.bw.alpha, offset)
             self.entropy_history[offset].append(e)
+            self.alpha_history[offset].append(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset))
 
-            if self.behavior_regressor:
-                alpha_ahead = np.array(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)).reshape(-1, 1)
-                bp = self.behavior_regressor.predict(alpha_ahead)
+            if self.behavior_regressors:
+                for i in range(len(self.behavior_regressors)):
+                    alpha_ahead = np.array(self.bw.alpha @ np.linalg.matrix_power(self.bw.A, offset)).reshape(-1, 1)
+                    bp = self.behavior_regressors[i].predict(alpha_ahead)
 
-                self.behavior_pred_history[offset].append(bp)
-                self.behavior_error_history[offset].append(bp - b)
+                    self.behavior_pred_history[i][offset].append(bp)
+                    self.behavior_error_history[i][offset].append(bp - b)
 
-        self.alpha_history.append(self.bw.alpha)
         self.n_living_history.append(self.bw.N - len(self.bw.dead_nodes))
         if self.save_A:
             self.A_history.append(self.bw.A)
@@ -136,10 +149,10 @@ class BWRun:
 
         self.prediction_history = convert_dict(self.prediction_history)
         self.entropy_history = convert_dict(self.entropy_history)
-        self.behavior_pred_history = convert_dict(self.behavior_pred_history)
-        self.behavior_error_history = convert_dict(self.behavior_error_history)
+        self.behavior_pred_history = [convert_dict(x) for x in self.behavior_pred_history]
+        self.behavior_error_history = [convert_dict(x) for x in self.behavior_error_history]
+        self.alpha_history = convert_dict(self.alpha_history)
 
-        self.alpha_history = np.array(self.alpha_history)
         self.n_living_history = np.array(self.n_living_history)
         if self.save_A:
             self.A_history = np.array(self.A_history)
@@ -147,6 +160,21 @@ class BWRun:
         self.bw.freeze()
 
     # Metrics
+    def evaluate_regressor(self, reg, o, train_offset=0, test_offset=1):
+        train = self.alpha_history[train_offset]
+        test = self.alpha_history[test_offset]
+        pred = []
+
+        for i, (x, y) in enumerate(list(zip(train, o))[:-test_offset]):  # TODO: that `:-test_offset` is not thought out
+            reg.safe_observe(x, y)
+            pred.append(reg.predict(test[i]))
+
+        pred = np.array(pred)
+        if len(pred.shape) == 1:
+            pred = pred.reshape(-1, 1)
+
+        return pred, o[test_offset:] # predicted, true
+
     def _last_half_index(self):
         assert self.frozen
         assert self.data_source.time_offsets

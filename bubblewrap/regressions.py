@@ -23,13 +23,13 @@ class OnlineRegressor(ABC):
 
     @abstractmethod
     def safe_observe(self, x, y):
-        """This function saves an observation and possibly updates internal parameters if the regressor has seen enough
-        data."""
+        """This function saves an observation and possibly updates initializes parameters if the regressor has seen
+        enough data."""
         pass
 
     @abstractmethod
     def observe(self, x, y):
-        """This is the function called after observing a data point; usually you want lazy_observe."""
+        """This function observes a datapoint; usually you want safe_observe."""
         pass
 
     @abstractmethod
@@ -92,6 +92,8 @@ class SymmetricNoisyRegressor(OnlineRegressor):
         self.n_observed += 1
 
     def safe_observe(self, x, y):
+        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+            return
         x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
             self.observe(x, y, update_D=True)
@@ -240,6 +242,8 @@ class WindowRegressor(OnlineRegressor):
         self.n_observed += 1
 
     def safe_observe(self, x, y):
+        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+            return
         x, y = np.array(x), np.array(y)
         if self.n_observed >= self.init_min_ratio * self.input_d or self.D is not None:
             self.observe(x, y, update_D=True)
@@ -275,6 +279,8 @@ class NearestNeighborRegressor(OnlineRegressor):
                 self.observe(x_history[i], y_history[i])
 
     def safe_observe(self, x, y):
+        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+            return
         self.observe(x, y)
 
     def observe(self, x, y):
@@ -299,6 +305,8 @@ class AutoRegressor(OnlineRegressor):
         self.history = None
 
     def safe_observe(self, x, y):
+        if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+            return
         self.observe(x,y)
 
     def observe(self, x, y):

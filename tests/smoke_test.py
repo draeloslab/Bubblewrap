@@ -14,7 +14,7 @@ def test_can_run_with_beh(rng, outdir):
 
     bw = Bubblewrap(n_obs, **default_clock_parameters)
     reg = SymmetricNoisyRegressor(bw.N, n_beh)
-    br = BWRun(bw, ds, behavior_regressor=reg, show_tqdm=False, output_directory=outdir)
+    br = BWRun(bw, ds, behavior_regressors=[reg], show_tqdm=False, output_directory=outdir)
     br.run()
 
 def test_can_run_without_beh(rng, outdir):
@@ -43,7 +43,7 @@ def test_can_make_video(rng, outdir):
 
     bw = Bubblewrap(3, **default_clock_parameters)
     reg = SymmetricNoisyRegressor(bw.N, n_beh)
-    br = BWRun(bw, ds, behavior_regressor=reg, animation_manager=ca, show_tqdm=False, output_directory=outdir)
+    br = BWRun(bw, ds, behavior_regressors=[reg], animation_manager=ca, show_tqdm=False, output_directory=outdir)
     br.run()
 
 def test_can_use_cuda():

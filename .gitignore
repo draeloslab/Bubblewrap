@@ -1,3 +1,5 @@
+generated/datasets/*
+
 *.mp4
 *.json
 *.gif
