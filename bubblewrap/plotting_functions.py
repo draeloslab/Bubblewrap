@@ -329,6 +329,7 @@ def _deduce_bw_parameters(bw):
                 batch_size=bw.batch_size,
                 go_fast=bw.go_fast,
                 copy_row_on_teleport=bw.copy_row_on_teleport,
+                num_grad_q=bw.num_grad_q,
                 )
 
 

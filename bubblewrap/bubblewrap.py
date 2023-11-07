@@ -12,7 +12,7 @@ epsilon = 1e-10
 
 class Bubblewrap():
     def __init__(self, dim, num=1000, seed=42, M=30, lam=1, nu=1e-2, eps=3e-2, B_thresh=1e-4, step=1e-6, n_thresh=5e-4,
-                 batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True):
+                 batch=False, batch_size=1, go_fast=False, copy_row_on_teleport=True, num_grad_q=1):
         self.N = num  # Number of nodes
         self.d = dim  # dimension of the space
         self.seed = seed
@@ -25,6 +25,7 @@ class Bubblewrap():
         self.n_thresh = n_thresh
         self.step = step
         self.copy_row_on_teleport = copy_row_on_teleport
+        self.num_grad_q = num_grad_q
 
         self.batch = batch
         self.batch_size = batch_size
@@ -232,17 +233,17 @@ class Bubblewrap():
         return node
 
     def grad_Q(self):
+        for _ in range(self.num_grad_q):
+            divisor = 1 + self.sum_me(self.En)
+            (grad_mu, grad_L, grad_L_diag, grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
+                                                                   self.lam, self.S2, self.n_obs, self.En, self.nu,
+                                                                   self.sigma_orig, self.beta, self.d, self.mu_orig)
 
-        divisor = 1 + self.sum_me(self.En)
-        (grad_mu, grad_L, grad_L_diag, grad_A) = self.grad_all(self.mu, self.L_lower, self.L_diag, self.log_A, self.S1,
-                                                               self.lam, self.S2, self.n_obs, self.En, self.nu,
-                                                               self.sigma_orig, self.beta, self.d, self.mu_orig)
+            self.run_adam(grad_mu / divisor, grad_L / divisor, grad_L_diag / divisor, grad_A / divisor)
 
-        self.run_adam(grad_mu / divisor, grad_L / divisor, grad_L_diag / divisor, grad_A / divisor)
+            self.A = sm(self.log_A)
 
-        self.A = sm(self.log_A)
-
-        self.L = self.compute_L(self.L_diag, self.L_lower)
+            self.L = self.compute_L(self.L_diag, self.L_lower)
 
     def run_adam(self, mu, L, L_diag, A):
         ## inputs are gradients

@@ -19,10 +19,9 @@ if TYPE_CHECKING:
     from .regressions import OnlineRegressor
 
 @save_to_cache("simple_bw_run")
-def simple_bw_run(input_array, bw_params, time_offsets=(1,)):
-    ds = NumpyPairedDataSource(input_array, time_offsets=time_offsets)
-    bw = Bubblewrap(input_array.shape[1], **bw_params)
-    br = BWRun(bw, ds, show_tqdm=True)
+def simple_bw_run(input_arr, t, time_offsets, bw_params):
+    bw = Bubblewrap(input_arr.shape[1], **bw_params)
+    br = BWRun(bw, NumpyTimedDataSource(input_arr, t, time_offsets), show_tqdm=True)
     br.run(save=True)
     return br
 
@@ -91,48 +90,50 @@ class BWRun:
         else:
             beh_next_t, beh_done = float("inf"), True
 
-        while not (obs_done and beh_done) and bw_step <= limit:
-            if beh_done or obs_next_t < beh_next_t:
-                obs = next(self.obs_ds)
-                self.bw.observe(obs)
-                self.bw_timepoint_history.append(self.obs_ds.current_timepoint())
+        with tqdm(total=limit) as pbar:
+            while not (obs_done and beh_done) and bw_step <= limit:
+                if beh_done or obs_next_t < beh_next_t:
+                    obs = next(self.obs_ds)
+                    self.bw.observe(obs)
 
-                if bw_step < self.bw.M:
+                    if bw_step < self.bw.M:
+                        bw_step += 1
+                        pbar.update(1)
+                        continue
+                    elif bw_step == self.bw.M:
+                        self.bw.init_nodes()
+                        self.bw.e_step()  # todo: is this OK?
+                        self.bw.grad_Q()
+                    else:
+                        self.bw.e_step()
+                        self.bw.grad_Q()
+
+                    pairs = {}
+                    for offset in self.obs_ds.time_offsets:
+                        pairs[offset] = self.obs_ds.get_atemporal_data_point(offset)
+                    self.bw_log_for_step(bw_step, pairs)
                     bw_step += 1
-                    continue
-                elif bw_step == self.bw.M:
-                    self.bw.init_nodes()
-                    self.bw.e_step()  # todo: is this OK?
-                    self.bw.grad_Q()
+                    pbar.update(1)
                 else:
-                    self.bw.e_step()
-                    self.bw.grad_Q()
+                    beh = next(self.beh_ds)
+                    if hasattr(self.bw, 'alpha'):
+                        self.reg_timepoint_history.append(self.beh_ds.current_timepoint())
+                        if self.behavior_regressor:
+                            self.behavior_regressor.safe_observe(self.bw.alpha, beh)
 
-                pairs = {}
-                for offset in self.obs_ds.time_offsets:
-                    pairs[offset] = self.obs_ds.get_atemporal_data_point(offset)
-                self.bw_log_for_step(bw_step, pairs)
-                bw_step += 1
-            else:
-                beh = next(self.beh_ds)
-                if hasattr(self.bw, 'alpha'):
-                    self.reg_timepoint_history.append(self.beh_ds.current_timepoint())
-                    if self.behavior_regressor:
-                        self.behavior_regressor.safe_observe(self.bw.alpha, beh)
+                            for offset in self.beh_ds.time_offsets:
+                                b = self.beh_ds.get_atemporal_data_point(offset)
+                                alpha_ahead = self.alpha_history[offset][-1]
+                                bp = self.behavior_regressor.predict(alpha_ahead)
 
-                        for offset in self.beh_ds.time_offsets:
-                            b = self.beh_ds.get_atemporal_data_point(offset)
-                            alpha_ahead = self.alpha_history[offset][-1]
-                            bp = self.behavior_regressor.predict(alpha_ahead)
+                                self.behavior_pred_history[offset].append(bp)
+                                self.behavior_error_history[offset].append(bp - b)
 
-                            self.behavior_pred_history[offset].append(bp)
-                            self.behavior_error_history[offset].append(bp - b)
-
-            obs_next_t, obs_done = self.obs_ds.preview_next_timepoint()
-            if self.beh_ds:
-                beh_next_t, beh_done = self.beh_ds.preview_next_timepoint()
-            else:
-                beh_next_t, beh_done = float("inf"), True
+                obs_next_t, obs_done = self.obs_ds.preview_next_timepoint()
+                if self.beh_ds:
+                    beh_next_t, beh_done = self.beh_ds.preview_next_timepoint()
+                else:
+                    beh_next_t, beh_done = float("inf"), True
 
 
 
@@ -172,6 +173,8 @@ class BWRun:
         if self.animation_manager and self.animation_manager.frame_draw_condition(step, self.bw):
             self.animation_manager.draw_frame(step, self.bw, self)
 
+        self.bw_timepoint_history.append(self.obs_ds.current_timepoint())
+
     def finish_and_remove_jax(self):
         self.frozen = True
         if self.animation_manager:
@@ -197,22 +200,43 @@ class BWRun:
         self.bw.freeze()
 
     # Metrics
-    def evaluate_regressor(self, reg, o, train_offset=0, test_offset=1):
-        train = self.alpha_history[train_offset]
-        test = self.alpha_history[test_offset]
+    def evaluate_regressor(self, reg, o, o_t, train_offset=0, test_offset=1):
+        assert len(o_t) == len(o)
+        train_alphas = self.alpha_history[train_offset]
+        test_alphas = self.alpha_history[test_offset]
+        alpha_t = self.bw_timepoint_history
         pred = []
+        truth = []
+        pred_times = []
 
-        for i, (x, y) in enumerate(list(zip(train, o))[:-test_offset]):  # TODO: that `:-test_offset` is not thought out
-            reg.safe_observe(x, y)
-            pred.append(reg.predict(test[i]))
+        j = 0
+        for i, obs_time in enumerate(o_t):
+            while (j+1) < len(alpha_t) and alpha_t[j+1] <= obs_time:
+                j += 1
+            if j < len(alpha_t) and obs_time <= alpha_t[j]:
+                reg.safe_observe(train_alphas[j],o[i])
+                pred.append(reg.predict(test_alphas[j]))
+                truth.append(o[i])
+                pred_times.append(alpha_t[j])
+                j += 1
 
         pred = np.array(pred)
+        pred_times = np.array(pred_times)
+        truth = np.array(truth)
         if len(pred.shape) == 1:
             pred = pred.reshape(-1, 1)
 
-        return pred, o[test_offset:] # predicted, true
+        return pred, truth, pred_times # predicted, true, times
+
+    def add_regressor_post_hoc(self, reg, o, o_t, train_offset=0, test_offset=1):
+        predictions, truth, pred_times = self.evaluate_regressor(reg, o, o_t, train_offset, test_offset)
+        self.reg_timepoint_history = np.array(pred_times)
+        self.behavior_pred_history = {test_offset: np.array(predictions)}
+        self.behavior_error_history = {test_offset: np.array(predictions - truth)}
+        return predictions, truth, pred_times # predicted, true, times
 
     def _last_half_index(self):
+
         assert self.frozen
         assert self.obs_ds.time_offsets
         pred = self.prediction_history[self.obs_ds.time_offsets[0]]

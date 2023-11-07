@@ -1,3 +1,7 @@
-attempt_to_cache: True # this only applies to the bubblewrap.input_sources.functional file
+# these only apply to the bubblewrap.input_sources.functional file
+attempt_to_cache: True
+validate_cache: False # this doesn't work yet
+show_cache_files: True
+
 data_path: ./generated/datasets
 output_path: ./generated

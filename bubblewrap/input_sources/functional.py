@@ -11,20 +11,28 @@ from pynwb import NWBHDF5IO
 from skimage.transform import resize
 from scipy.io import loadmat
 from bubblewrap.config import CONFIG
+import time
 
 
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
+            if obj.shape[0] > 1000:
+                n_samples = 200
+                row_samples = [round(x * (obj.shape[0]-1)) for x in np.linspace(0,1, n_samples)]
+                obj = obj[row_samples]
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
 
 def make_hashable(x):
     return json.dumps(x, sort_keys=True, cls=NumpyEncoder).encode()
 
+def make_hashable_and_hash(x):
+    return int(hashlib.sha1(make_hashable(x)).hexdigest(), 16)
 
-def save_to_cache(file, location=os.path.join(bubblewrap.config.CONFIG["data_path"], "cache")):
+
+def save_to_cache(file, location=bubblewrap.config.CONFIG["data_path"] / "cache"):
     if not os.path.exists(location):
         os.mkdir(location)
     cache_index_file = os.path.join(location, f"{file}_index.pickle")
@@ -39,21 +47,29 @@ def save_to_cache(file, location=os.path.join(bubblewrap.config.CONFIG["data_pat
             return original_function
 
         def new_function(**kwargs):
-            kwargs_as_key = int(hashlib.sha1(make_hashable(kwargs)).hexdigest(), 16)
+            kwargs_as_key = make_hashable_and_hash(kwargs)
 
-            if kwargs_as_key not in cache_index:
+            if kwargs_as_key not in cache_index or not os.path.exists(location / cache_index[kwargs_as_key]):
                 result = original_function(**kwargs)
 
                 hstring = str(kwargs_as_key)[-15:]
                 cache_file = os.path.join(location,f"{file}_{hstring}.pickle")
+                if CONFIG["show_cache_files"]:
+                    print(f"caching value in: {cache_file}")
                 with open(cache_file, "wb") as fhan:
                     pickle.dump(result, fhan)
 
                 cache_index[kwargs_as_key] = cache_file
                 with open(cache_index_file, 'bw') as fhan:
                     pickle.dump(cache_index, fhan)
+            elif CONFIG["validate_cache"]: # TODO: this doesn't work
+                result = original_function(**kwargs)
+                with open(os.path.join(location, cache_index[kwargs_as_key]), 'rb') as fhan:
+                    assert make_hashable_and_hash(result) == make_hashable_and_hash(pickle.load(fhan))
 
             with open(os.path.join(location, cache_index[kwargs_as_key]), 'rb') as fhan:
+                if CONFIG["show_cache_files"]:
+                    print(f"retreiving cache from: {cache_index[kwargs_as_key]}")
                 return pickle.load(fhan)
 
         return new_function
@@ -71,7 +87,7 @@ def get_from_saved_npz(filename):
 
     return obs, beh.reshape([obs.shape[0], -1])
 
-
+@save_to_cache("prosvd_data")
 def prosvd_data(input_arr, output_d, init_size):
     pro = proSVD(k=output_d)
     pro.initialize(input_arr[:init_size].T)
@@ -111,18 +127,22 @@ def zscore(input_arr, init_size=6, clip=True):
         m2 += delta * (x - mean)
         count += 1
     output = np.array(output)
-    output[output > 15] = 15
-    output[output < -15] = -15
+
+    if clip:
+        output[output > 15] = 15
+        output[output < -15] = -15
     return output
 
+# todo: some rank-version of zscore?
 
-def shuffle_time(input_arr_list, rng=None):
+
+def shuffle_time(*input_arr_list, rng=None):
     if rng is None:
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(0)
 
     p = rng.permutation(input_arr_list[0].shape[0])
 
-    return (x[p,:] for x in input_arr_list)
+    return [x[p,:] for x in input_arr_list]
 
 
 @save_to_cache("bwrap_alphas")
@@ -234,6 +254,7 @@ def construct_indy_data(dataset, bin_width=.03):
     return A, raw_behavior, bin_centers, t
 
 
+@save_to_cache("buzaki_data")
 def construct_buzaki_data(base, bin_size):
     parent_folder = CONFIG["data_path"] / 'buzaki'
     def read_int_file(fname):

@@ -211,14 +211,14 @@ class NumpyTimedDataSource(DataSource):
             a = a[:, None]
         super().__init__(output_shape=len(a[0]), time_offsets=time_offsets)
         self.a = a
-        self.t = timepoints if timepoints else np.arange(a.shape[0])
+        self.t = timepoints if timepoints is not None else np.arange(a.shape[0])
         assert len(self.t) == len(self.a)
 
         self.clear_range = (0, len(a))
         if self.time_offsets:
             self.clear_range = (max(0, -min(time_offsets)), len(a) - max(max(time_offsets), 0))
 
-        self.length = self.clear_range[1] - self.clear_range[0]
+        self.length = int(self.clear_range[1] - self.clear_range[0])
         self.index = 0
 
     def __iter__(self):

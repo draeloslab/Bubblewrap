@@ -9,6 +9,7 @@
 # batch = False       # run in batch mode
 # batch_size = 1      # batch mode size; if not batch is 1
 # go_fast = False     # flag to skip computing priors, predictions, and entropy for optimal speed
+ # num_grad_q = 1     # number of times to call grad_q in an inner loop
 
 default_rwd_parameters = dict(
     num=200,
@@ -22,6 +23,8 @@ default_rwd_parameters = dict(
     batch_size=1,
     go_fast=False,
     seed=42,
+    num_grad_q=1,
+    copy_row_on_teleport=True,
 )
 
 default_jpca_dataset_parameters = dict(
@@ -35,6 +38,8 @@ default_jpca_dataset_parameters = dict(
     batch_size=1,
     go_fast=False,
     seed=42,
+    num_grad_q=1,
+    copy_row_on_teleport=True,
 )
 
 default_clock_parameters = dict(
@@ -49,6 +54,8 @@ default_clock_parameters = dict(
     batch_size=1,
     go_fast=False,
     seed=42,
+    num_grad_q=1,
+    copy_row_on_teleport=True,
 )
 
 # reasonable_parameter_ranges = dict(
