@@ -251,6 +251,9 @@ def construct_indy_data(dataset, bin_width=.03):
     mask = bin_centers > 70 # behavior is near-constant before 70 seconds
     bin_centers, behavior, A = bin_centers[mask], behavior[mask], A[mask]
 
+    raw_behavior[:, 0] -= 8.5
+    raw_behavior[:, 0] *= 10
+
     return A, raw_behavior, bin_centers, t
 
 

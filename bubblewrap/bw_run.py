@@ -240,7 +240,7 @@ class BWRun:
         assert self.frozen
         assert self.obs_ds.time_offsets
         pred = self.prediction_history[self.obs_ds.time_offsets[0]]
-        assert np.isfinite(pred)
+        assert np.all(np.isfinite(pred))
         return len(pred)//2
 
     def behavior_pred_corr(self, offset):
@@ -261,7 +261,7 @@ class BWRun:
 
     def entropy_summary(self, offset):
         i = self._last_half_index()
-        return self.entropy_history[offset][-i:].mean()
+        return np.nanmean(self.entropy_history[offset][-i:])
 
 
 class AnimationManager:
