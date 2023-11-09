@@ -188,7 +188,19 @@ def bwrap_alphas_ahead(input_arr, bw_params, nsteps=(1,)):
     return returns
 
 def clip(*args, maxlen=float("inf")):
-    """this assumes the last elements match timepoints, and that timepoints with any nans should be dropped"""
+    """take a variable number of arguments and trim them to be the same length
+
+    The logic behind this function is that lots of the time arrays become misaligned because some initialiation cut off the early values of one of the arrays.
+    This function hopes to re-align variable-length arrays by only keeping the last N values.
+    It also trims off NaN's in the beginning of an array as if they were missing values.
+
+    inputs:
+        *args: a set of iterables
+        maxlen: a maximum length to trim them all down to (defaults to the shortest of the lengths of the iterables)
+
+    outputs:
+         clipped_arrays: the arrays passed in as `*args`, but shortened
+    """
     l = min([len(a) for a in args])
     l = int(min(maxlen, l))
     args = [a[-l:] for a in args]
@@ -201,8 +213,8 @@ def clip(*args, maxlen=float("inf")):
             fin = np.all(fin, axis=1)
         m = max(m, np.nonzero(fin)[0][0])
 
-    args = [a[m:] for a in args]
-    return args
+    clipped_arrays = [a[m:] for a in args]
+    return clipped_arrays
 
 
 def construct_indy_data(dataset, bin_width=.03):

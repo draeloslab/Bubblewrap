@@ -111,6 +111,11 @@ class SymmetricNoisyRegressor(OnlineRegressor):
         return x.T @ w
 
 
+class BinarySNR(SymmetricNoisyRegressor):
+    def predict(self,x):
+        return np.round(super().predict(x))
+
+
 # class SlowWindowRegressor(OnlineRegressor):
 #     def __init__(self, N,  window_size, forgetting_factor=1, init_min_ratio=3):
 #         super().__init__()
